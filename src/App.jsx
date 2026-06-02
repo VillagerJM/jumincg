@@ -6,13 +6,13 @@ import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 // 📚 우표 데이터 (사용자님이 자유롭게 추가 및 수정하세요!)
 // filename: 실제 public/stamps 폴더에 넣을 이미지 파일 이름입니다.
 const STAMPS = [
-  { id: 1, name: '1번 우표', desc: '1번 우표이다.', rarity: '일반', filename: '001.png' },
+  { id: 1, name: '치탄다 에루 우표', desc: '내 아내임', rarity: '전설', filename: '001.png' },
   { id: 2, name: '웃긴 우표', desc: '웃끼끼.', rarity: '희귀', filename: '002.png' },
-  { id: 3, name: '3번 우표', desc: '3번 우표이다.', rarity: '전설', filename: '003.png' },
-  { id: 4, name: '4번 우표', desc: '4번 우표이다.', rarity: '일반', filename: '004.png' },
+  { id: 3, name: '이상 우표', desc: '날개야 다시 돋아라.\n날자. 날자. 날자. 한 번만 더 날자꾸나.\n한 번만 더 날아 보자꾸나.', rarity: '전설', filename: '003.png' },
+  { id: 4, name: '양치 우표', desc: '양치를 30분간 하자.', rarity: '일반', filename: '004.png' },
   { id: 5, name: '5번 우표', desc: '5번 우표이다.', rarity: '희귀', filename: '005.png' },
   { id: 6, name: '6번 우표', desc: '6번 우표이다.', rarity: '희귀', filename: '006.png' },
-  { id: 7, name: '7번 우표', desc: '6번 우표이다.', rarity: '전설', filename: '006.png' },
+  { id: 7, name: '정사각숭이 우표', desc: '정확한 정사각형 원숭이 우표.', rarity: '전설', filename: '007.png' },
   { id: 8, name: '8번 우표', desc: '6번 우표이다.', rarity: '전설', filename: '006.png' },
   { id: 9, name: '9번 우표', desc: '9번 우표이다.', rarity: '일반', filename: '006.png' },
   { id: 10, name: '빙과 우표', desc: '6번 우표이다.', rarity: '일반', filename: '006.png' },
@@ -217,7 +217,7 @@ export default function App() {
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-slate-900 text-white font-custom space-y-6">
-        <h1 className="text-5xl font-bold text-yellow-400">우표 수집가</h1>
+        <h1 className="text-5xl font-bold text-yellow-400">우표 수집에 대한 길고도 짧은 고찰</h1>
         <p className="text-slate-300 text-lg">로그인하고 1시간마다 우표를 모아보세요!</p>
         <button onClick={handleLogin} className="px-6 py-3 bg-white text-slate-900 font-bold rounded shadow-lg">
           구글 계정으로 시작하기
@@ -238,7 +238,7 @@ export default function App() {
       {/* --- 화면 전환 로직 --- */}
       {screen === 'MAIN' && (
         <div className="flex flex-col items-center justify-center h-full space-y-6">
-          <h1 className="text-6xl font-bold text-yellow-400 mb-8">우표 수집가</h1>
+          <h1 className="text-6xl font-bold text-yellow-400 mb-8">우표 수집에 대한 길고도 짧은 고찰</h1>
           <button onClick={() => setScreen('GACHA')} className="w-64 py-4 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-2xl shadow-lg">
             우표 뽑기
           </button>
@@ -290,10 +290,15 @@ export default function App() {
               <div className={`text-6xl font-bold ${timeLeft <= 0 ? 'text-green-400 animate-pulse' : 'text-slate-400'}`}>
                 {formatTime(timeLeft)}
               </div>
+              {/* 💡 [수정] hover:brightness-110 클래스를 추가하고 hover 상태일 때는 pulse 애니메이션을 멈추도록 세팅! */}
               <button 
                 onClick={handleDraw}
                 disabled={timeLeft > 0}
-                className={`px-12 py-4 rounded-xl font-bold text-2xl shadow-lg transition-all ${timeLeft > 0 ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-yellow-500 text-yellow-900 hover:bg-yellow-400 hover:scale-105'}`}
+                className={`px-12 py-4 rounded-xl font-bold text-2xl shadow-lg transition-all
+                  ${timeLeft > 0 
+                    ? 'bg-slate-700 text-slate-500 cursor-not-allowed' 
+                    : 'bg-yellow-500 text-yellow-900 hover:bg-yellow-400 hover:scale-105 hover:brightness-130 hover:animate-none animate-pulse'
+                  }`}
               >
                 뽑기!
               </button>
@@ -364,28 +369,55 @@ export default function App() {
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedStamp(null)}></div>
           
           <div className="relative bg-slate-800 border-2 border-slate-600 p-8 rounded-xl shadow-2xl max-w-sm w-full flex flex-col items-center text-center">
-            <button onClick={() => setSelectedStamp(null)} className="absolute top-3 right-4 text-slate-400 hover:text-white text-xl">✖</button>
+            <button onClick={() => setSelectedStamp(null)} className="absolute top-4 right-5 text-slate-400 hover:text-white text-2xl transition-colors">✖</button>
             
-            <div className="text-sm text-yellow-500 font-bold mb-4">No.{String(selectedStamp.id).padStart(3, '0')}</div>
+            {/* 💡 [수정] mt-6으로 살짝 더 내리고, 번호 크기를 sm과 lg의 중간인 text-base로 조절! */}
+            <div className="flex justify-between items-center w-full mt-6 mb-6 px-1">
+              <div className="text-base text-slate-400 font-bold tracking-wider">
+                No.{String(selectedStamp.id).padStart(3, '0')}
+              </div>
+              
+              {(() => {
+                let rClass = "";
+                if (selectedStamp.rarity === '일반') rClass = "text-slate-100 bg-slate-700/60 border border-slate-600/50";
+                else if (selectedStamp.rarity === '희귀') rClass = "text-yellow-400 bg-orange-950/60 border border-orange-500/40";
+                else if (selectedStamp.rarity === '전설') rClass = "text-purple-400 bg-purple-950/50 border border-purple-500/30";
+                
+                return (
+                  <span className={`text-sm px-3 py-1.5 rounded-md font-bold shadow-sm ${rClass}`}>
+                    {selectedStamp.rarity}
+                  </span>
+                );
+              })()}
+            </div>
             
             <img 
               src={`/stamps/${selectedStamp.filename}`} 
-              className={`w-48 h-48 object-contain mb-6 ${!selectedStamp.isUnlocked ? 'brightness-0 opacity-30' : ''}`} 
+              className={`w-48 h-48 object-contain mb-6 transition-all duration-500 ${!selectedStamp.isUnlocked ? 'brightness-0 opacity-30 scale-95' : 'scale-100'}`} 
               alt="detail"
             />
             
             {selectedStamp.isUnlocked ? (
-              <>
-                <div className="text-xs px-2 py-1 bg-slate-700 text-blue-300 rounded mb-2 inline-block">{selectedStamp.rarity}</div>
-                <h3 className="text-3xl font-bold mb-3">{selectedStamp.name}</h3>
-                <p className="text-slate-300 leading-relaxed break-keep">{selectedStamp.desc}</p>
-              </>
+              <div className="animate-fade-in">
+                <h3 className="text-3xl font-bold mb-3 text-white">{selectedStamp.name}</h3>
+                {/* 💡 [수정] whitespace-pre-wrap 추가! */}
+                <p className="text-slate-300 leading-relaxed break-keep text-lg whitespace-pre-wrap">
+                  {selectedStamp.desc}
+                </p>
+              </div>
             ) : (
-              <div className="py-6">
-                <h3 className="text-2xl font-bold text-slate-400 mb-2">???</h3>
-                <p className="text-slate-500">아직 해금되지 않은 우표입니다.</p>
+              <div className="py-4">
+                <h3 className="text-3xl font-bold text-slate-500 mb-2">???</h3>
+                <p className="text-slate-500 font-bold">아직 해금되지 않았습니다.</p>
               </div>
             )}
+
+            <button 
+              onClick={() => setSelectedStamp(null)}
+              className="mt-8 w-full py-4 bg-slate-700 hover:bg-slate-600 rounded-xl font-bold text-lg transition-colors shadow-lg"
+            >
+              닫기
+            </button>
           </div>
         </div>
       )}
