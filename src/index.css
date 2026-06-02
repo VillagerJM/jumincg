@@ -1,1 +1,16 @@
 @import "tailwindcss";
+
+/* 👇 폰트 불러오기 (경로와 파일명을 본인 것에 맞게 수정하세요) */
+@font-face {
+  font-family: 'MyCustomFont';
+  src: url('/fonts/pfbold.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+/* 👇 Tailwind에서 font-custom이라는 이름으로 이 폰트를 사용할 수 있게 강제 지정 */
+@layer utilities {
+  .font-custom {
+    font-family: 'MyCustomFont', sans-serif !important;
+  }
+}
