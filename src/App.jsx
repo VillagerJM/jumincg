@@ -7,13 +7,24 @@ import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 // filename: 실제 public/stamps 폴더에 넣을 이미지 파일 이름입니다.
 const STAMPS = [
   { id: 1, name: '1번 우표', desc: '1번 우표이다.', rarity: '일반', filename: '001.png' },
-  { id: 2, name: '2번 우표', desc: '2번 우표이다.', rarity: '희귀', filename: '002.png' },
+  { id: 2, name: '웃긴 우표', desc: '웃끼끼.', rarity: '희귀', filename: '002.png' },
   { id: 3, name: '3번 우표', desc: '3번 우표이다.', rarity: '전설', filename: '003.png' },
   { id: 4, name: '4번 우표', desc: '4번 우표이다.', rarity: '일반', filename: '004.png' },
   { id: 5, name: '5번 우표', desc: '5번 우표이다.', rarity: '희귀', filename: '005.png' },
+  { id: 6, name: '6번 우표', desc: '6번 우표이다.', rarity: '희귀', filename: '006.png' },
+  { id: 7, name: '7번 우표', desc: '6번 우표이다.', rarity: '전설', filename: '006.png' },
+  { id: 8, name: '8번 우표', desc: '6번 우표이다.', rarity: '전설', filename: '006.png' },
+  { id: 9, name: '9번 우표', desc: '9번 우표이다.', rarity: '일반', filename: '006.png' },
+  { id: 10, name: '빙과 우표', desc: '6번 우표이다.', rarity: '일반', filename: '006.png' },
+  { id: 11, name: '앙버블 우표', desc: '6번 우표이다.', rarity: '희귀', filename: '006.png' },
+  { id: 12, name: '김철순 우표', desc: '김철순 추모', rarity: '희귀', filename: '006.png' },
+  { id: 13, name: '이종윤 우표', desc: '보고싶은 이존윤', rarity: '일반', filename: '006.png' },
+  { id: 14, name: '엄필규 우표', desc: '6번 우표이다.', rarity: '일반', filename: '006.png' },
+  { id: 15, name: '바보임? 우표', desc: '6번 우표이다.', rarity: '일반', filename: '006.png' },
+  { id: 16, name: '우표 우표', desc: '6번 우표이다.', rarity: '일반', filename: '006.png' },
 ];
 
-const COOLDOWN_MS = 60 * 60 * 1000; // 1시간 (밀리초 단위)
+const COOLDOWN_MS = 15 * 60 * 1000; // 1시간 (밀리초 단위)
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -26,14 +37,22 @@ export default function App() {
   const [selectedStamp, setSelectedStamp] = useState(null); // 모달용
 
   // 1️⃣ 로그인 감지 및 데이터 불러오기
+  // 1️⃣ 로그인 감지 및 데이터 불러오기
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
         const userRef = doc(db, 'users', currentUser.uid);
         const docSnap = await getDoc(userRef);
+        
         if (docSnap.exists()) {
-          setUserData(docSnap.data());
+          const data = docSnap.data();
+          // 💡 수정된 부분: 예전 클리커 게임 데이터만 있는 경우를 대비해 안전장치(기본값) 추가!
+          setUserData({
+            ...data,
+            collection: data.collection || [],
+            nextPullTime: data.nextPullTime || 0
+          });
         } else {
           const newData = { email: currentUser.email, collection: [], nextPullTime: 0 };
           await setDoc(userRef, newData);
@@ -79,14 +98,63 @@ export default function App() {
   };
 
   // 3️⃣ 우표 뽑기 로직
+  // 3️⃣ 우표 뽑기 로직
+  // 3️⃣ 우표 뽑기 로직 (중복 방지 및 유동적 확률 적용)
   const handleDraw = async () => {
     if (timeLeft > 0) return;
 
-    // 무작위로 우표 하나 선택 (희귀도에 따른 확률은 추후 자유롭게 구현 가능)
-    const randomStamp = STAMPS[Math.floor(Math.random() * STAMPS.length)];
+    // 1. 아직 수집하지 않은 우표들만 걸러내기
+    const uncollectedStamps = STAMPS.filter(
+      (stamp) => !userData.collection.includes(stamp.id)
+    );
+
+    if (uncollectedStamps.length === 0) return; // 모두 모았으면 함수 종료
+
+    // 2. 남은 우표들의 희귀도 존재 여부 확인
+    const hasCommon = uncollectedStamps.some((s) => s.rarity === '일반');
+    const hasRare = uncollectedStamps.some((s) => s.rarity === '희귀');
+    const hasLegendary = uncollectedStamps.some((s) => s.rarity === '전설');
+
+    // 3. 상황에 따른 확률 배분
+    let probs = {};
+    if (hasCommon && hasRare && hasLegendary) {
+      probs = { '일반': 60, '희귀': 30, '전설': 10 };
+    } else if (!hasCommon && hasRare && hasLegendary) {
+      probs = { '희귀': 70, '전설': 30 }; // 일반이 없을 때
+    } else if (hasCommon && !hasRare && hasLegendary) {
+      probs = { '일반': 90, '전설': 10 }; // 희귀가 없을 때
+    } else if (hasCommon && hasRare && !hasLegendary) {
+      probs = { '일반': 60, '희귀': 40 }; // 전설이 없을 때
+    } else if (hasCommon && !hasRare && !hasLegendary) {
+      probs = { '일반': 100 }; // 일반만 남았을 때
+    } else if (!hasCommon && hasRare && !hasLegendary) {
+      probs = { '희귀': 100 }; // 희귀만 남았을 때
+    } else if (!hasCommon && !hasRare && hasLegendary) {
+      probs = { '전설': 100 }; // 전설만 남았을 때
+    }
+
+    // 4. 확률에 따라 무슨 희귀도를 뽑을지 결정 (0 ~ 99.99 랜덤)
+    const rand = Math.random() * 100;
+    let selectedRarity = '';
+    let cumulative = 0;
+    
+    for (const [rarity, prob] of Object.entries(probs)) {
+      cumulative += prob;
+      if (rand < cumulative) {
+        selectedRarity = rarity;
+        break;
+      }
+    }
+
+    // 5. 결정된 희귀도 안에서 '동등한 확률'로 하나 뽑기
+    const pool = uncollectedStamps.filter((s) => s.rarity === selectedRarity);
+    const randomStamp = pool[Math.floor(Math.random() * pool.length)];
+
+    // 6. DB 업데이트 및 쿨타임 적용
     const now = Date.now();
-    const newCollection = [...new Set([...userData.collection, randomStamp.id])]; // 중복 방지 (Set 사용)
-    const newNextPullTime = now + COOLDOWN_MS; // 다음 뽑기 시간은 지금부터 1시간 뒤
+    const currentCooldown = user.email === 'juminham123@gmail.com' ? 10 * 1000 : COOLDOWN_MS;
+    const newNextPullTime = now + currentCooldown;
+    const newCollection = [...userData.collection, randomStamp.id]; // 중복이 원천 차단되므로 그냥 푸시
 
     const userRef = doc(db, 'users', user.uid);
     await updateDoc(userRef, {
@@ -189,6 +257,7 @@ export default function App() {
           <h2 className="text-4xl font-bold text-white mb-4">우표 뽑기</h2>
           
           {drawnStamp ? (
+            // 방금 우표를 뽑았을 때 화면
             <div className="flex flex-col items-center space-y-6 bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 animate-fade-in">
               <h3 className="text-2xl text-yellow-400 font-bold">새로운 우표 획득!</h3>
               <img src={`/stamps/${drawnStamp.filename}`} alt={drawnStamp.name} className="w-48 h-48 object-contain" />
@@ -205,7 +274,17 @@ export default function App() {
                  </button>
               </div>
             </div>
+          ) : userData.collection.length >= STAMPS.length ? (
+            // 💡 [추가된 부분] 우표를 모두 모았을 때 화면
+            <div className="flex flex-col items-center space-y-6 bg-slate-800 p-8 rounded-2xl shadow-2xl border border-yellow-500/50">
+              <div className="text-6xl mb-2">🏆</div>
+              <h3 className="text-3xl font-bold text-yellow-400 text-center leading-relaxed">
+                모든 우표를 <br/>획득하였습니다!!
+              </h3>
+              <p className="text-slate-300 font-bold">업데이트를 기다려주세요.</p>
+            </div>
           ) : (
+            // 일반적인 뽑기 대기 화면
             <div className="flex flex-col items-center space-y-6">
               <div className="text-2xl text-slate-300">다음 우표까지:</div>
               <div className={`text-6xl font-bold ${timeLeft <= 0 ? 'text-green-400 animate-pulse' : 'text-slate-400'}`}>
@@ -236,17 +315,36 @@ export default function App() {
           <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4 overflow-y-auto pb-10">
             {STAMPS.map(stamp => {
               const isUnlocked = userData.collection.includes(stamp.id);
+              
+              // 💡 [수정] 일반 테두리 추가 및 희귀/전설 색상 스왑!
+              let rarityClass = "";
+              if (stamp.rarity === '일반') {
+                rarityClass = "text-slate-100 bg-slate-700/60 border border-slate-600/50";
+              } else if (stamp.rarity === '희귀') {
+                // 기존 전설 색상 (노랑 + 주황 테두리)
+                rarityClass = "text-yellow-400 bg-orange-950/60 border border-orange-500/40";
+              } else if (stamp.rarity === '전설') {
+                // 기존 희귀 색상 (보라 + 보라 테두리)
+                rarityClass = "text-purple-400 bg-purple-950/50 border border-purple-500/30";
+              }
+
               return (
                 <div 
                   key={stamp.id} 
                   onClick={() => setSelectedStamp({ ...stamp, isUnlocked })}
                   className="flex flex-col items-center bg-slate-800 p-2 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors border border-slate-700"
                 >
-                  <div className="text-xs text-slate-500 mb-2 w-full text-left font-bold">No.{String(stamp.id).padStart(3, '0')}</div>
+                  {/* 상단 레이아웃 */}
+                  <div className="flex justify-between items-center w-full mb-2">
+                    <div className="text-xs text-slate-500 font-bold">No.{String(stamp.id).padStart(3, '0')}</div>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold scale-90 ${rarityClass}`}>
+                      {stamp.rarity}
+                    </span>
+                  </div>
+
                   <img 
                     src={`/stamps/${stamp.filename}`} 
                     alt="stamp" 
-                    // 💡 핵심: 잠긴 우표는 CSS 필터(brightness-0)로 까만 실루엣 처리합니다.
                     className={`w-20 h-20 object-contain ${!isUnlocked ? 'brightness-0 opacity-40' : ''}`} 
                   />
                   <div className="mt-2 text-sm font-bold text-center w-full truncate">
