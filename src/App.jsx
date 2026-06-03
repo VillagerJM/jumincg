@@ -8,9 +8,9 @@ import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 const STAMPS = [
   { id: 1, name: '치탄다 에루 우표', desc: '내 아내임', rarity: '전설', filename: '001.png' },
   { id: 2, name: '웃긴 우표', desc: '웃끼끼.', rarity: '희귀', filename: '002.png' },
-  { id: 3, name: '이상 우표', desc: '날개야 다시 돋아라.\n날자. 날자. 날자. 한 번만 더 날자꾸나.\n한 번만 더 날아 보자꾸나.g', rarity: '전설', filename: '003.png' },
+  { id: 3, name: '이상 우표', desc: '날개야 다시 돋아라.\n날자. 날자. 날자. 한 번만 더 날자꾸나.\n한 번만 더 날아 보자꾸나.', rarity: '전설', filename: '003.png' },
   { id: 4, name: '양치 우표', desc: '양치를 30분간 하자.', rarity: '일반', filename: '004.png' },
-  { id: 5, name: '5번 우표', desc: '5번 우표이다.', rarity: '희귀', filename: '005.png' },
+  { id: 5, name: '밤하늘 우표', desc: '달이 아름답네요.', rarity: '일반', filename: '005.png' },
   { id: 6, name: '6번 우표', desc: '6번 우표이다.', rarity: '희귀', filename: '006.png' },
   { id: 7, name: '정사각숭이 우표', desc: '정확한 정사각형 원숭이 우표.', rarity: '전설', filename: '007.png' },
   { id: 8, name: '8번 우표', desc: '6번 우표이다.', rarity: '전설', filename: '006.png' },
@@ -174,7 +174,7 @@ export default function App() {
     const ctx = canvas.getContext('2d');
 
     // 배경색 채우기
-    ctx.fillStyle = '#1e293b'; 
+    ctx.fillStyle = '#677ea2'; 
     ctx.fillRect(0, 0, 600, 700);
 
     // 텍스트 쓰기
