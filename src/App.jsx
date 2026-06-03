@@ -8,7 +8,7 @@ import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 const STAMPS = [
   { id: 1, name: '치탄다 에루 우표', desc: '내 아내임', rarity: '전설', filename: '001.png' },
   { id: 2, name: '웃긴 우표', desc: '웃끼끼.', rarity: '희귀', filename: '002.png' },
-  { id: 3, name: '이상 우표', desc: '날개야 다시 돋아라.\n날자. 날자. 날자. 한 번만 더 날자꾸나.\n한 번만 더 날아 보자꾸나.', rarity: '전설', filename: '003.png' },
+  { id: 3, name: '이상 우표', desc: '날개야 다시 돋아라.\n날자. 날자. 날자. 한 번만 더 날자꾸나.\n한 번만 더 날아 보자꾸나.g', rarity: '전설', filename: '003.png' },
   { id: 4, name: '양치 우표', desc: '양치를 30분간 하자.', rarity: '일반', filename: '004.png' },
   { id: 5, name: '5번 우표', desc: '5번 우표이다.', rarity: '희귀', filename: '005.png' },
   { id: 6, name: '6번 우표', desc: '6번 우표이다.', rarity: '희귀', filename: '006.png' },
@@ -229,10 +229,18 @@ export default function App() {
   return (
     <div className="relative h-screen bg-slate-900 text-white font-custom overflow-hidden">
       
-      {/* --- 우측 상단 로그아웃 버튼 --- */}
-      <div className="absolute top-4 right-4 flex items-center gap-4 z-10">
-        <span className="text-sm text-slate-400">{user.email}</span>
-        <button onClick={handleLogout} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs">로그아웃</button>
+      {/* --- 우측 상단 유저 정보 및 로그아웃 영역 예시 --- */}
+      {/* 💡 [수정] flex-1, min-w-0, truncate를 사용해 이메일이 길면 ...으로 잘리게 만듭니다 */}
+      <div className="absolute top-4 right-4 flex items-center gap-3 max-w-[70vw] sm:max-w-none">
+        <div className="text-xs sm:text-sm text-slate-400 truncate min-w-0 flex-1 text-right">
+          {user.email}
+        </div>
+        <button 
+          onClick={handleLogout} 
+          className="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded text-xs sm:text-sm font-bold whitespace-nowrap shrink-0"
+        >
+          로그아웃
+        </button>
       </div>
 
       {/* --- 화면 전환 로직 --- */}
@@ -257,20 +265,36 @@ export default function App() {
           <h2 className="text-4xl font-bold text-white mb-4">우표 뽑기</h2>
           
           {drawnStamp ? (
-            // 방금 우표를 뽑았을 때 화면
+            // 🎉 새로운 우표를 뽑았을 때 화면
             <div className="flex flex-col items-center space-y-6 bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 animate-fade-in">
               <h3 className="text-2xl text-yellow-400 font-bold">새로운 우표 획득!</h3>
+              
               <img src={`/stamps/${drawnStamp.filename}`} alt={drawnStamp.name} className="w-48 h-48 object-contain" />
-              <div className="text-center">
-                <div className="text-xs text-blue-300 font-bold mb-1">{drawnStamp.rarity}</div>
-                <div className="text-3xl font-bold">{drawnStamp.name}</div>
+              
+              <div className="text-center flex flex-col items-center">
+                {/* 💡 [수정] 도감/모달과 동일한 희귀도 배지 스타일 적용 */}
+                {(() => {
+                  let rClass = "";
+                  if (drawnStamp.rarity === '일반') rClass = "text-slate-100 bg-slate-700/60 border border-slate-600/50";
+                  else if (drawnStamp.rarity === '희귀') rClass = "text-yellow-400 bg-orange-950/60 border border-orange-500/40";
+                  else if (drawnStamp.rarity === '전설') rClass = "text-purple-400 bg-purple-950/50 border border-purple-500/30";
+                  
+                  return (
+                    <span className={`text-sm px-3 py-1 rounded-md font-bold mb-3 shadow-md ${rClass}`}>
+                      {drawnStamp.rarity}
+                    </span>
+                  );
+                })()}
+                
+                <div className="text-4xl font-bold text-white">{drawnStamp.name}</div>
               </div>
-              <div className="flex gap-4 w-full">
-                 <button onClick={() => downloadShareImage(drawnStamp)} className="flex-1 py-3 bg-green-600 hover:bg-green-500 rounded font-bold">
+
+              <div className="flex gap-4 w-full mt-4">
+                 <button onClick={() => downloadShareImage(drawnStamp)} className="flex-1 py-3 bg-green-600 hover:bg-green-500 rounded-lg font-bold transition-colors">
                    자랑하기 (이미지 저장)
                  </button>
-                 <button onClick={() => setDrawnStamp(null)} className="flex-1 py-3 bg-slate-600 hover:bg-slate-500 rounded font-bold">
-                   돌아가기
+                 <button onClick={() => setDrawnStamp(null)} className="flex-1 py-3 bg-slate-600 hover:bg-slate-500 rounded-lg font-bold transition-colors">
+                   확인
                  </button>
               </div>
             </div>
@@ -309,50 +333,51 @@ export default function App() {
       )}
 
       {screen === 'COLLECTION' && (
-        <div className="flex flex-col h-full p-8">
-          <button onClick={() => setScreen('MAIN')} className="text-slate-400 hover:text-white mb-6 w-fit">
+        // 💡 [수정1] 모바일에서 패딩을 줄이고(p-4 sm:p-8), 가로 스크롤을 원천 차단(w-full overflow-x-hidden)
+        <div className="flex flex-col h-full p-4 sm:p-8 w-full max-w-full overflow-x-hidden">
+          
+          <button onClick={() => setScreen('MAIN')} className="text-slate-400 hover:text-white mb-4 sm:mb-6 w-fit text-sm sm:text-base">
             ◀ 메인으로
           </button>
           
-          <h2 className="text-3xl font-bold mb-6 text-yellow-400">도감 ({userData.collection.length} / {STAMPS.length})</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold mb-4 sm:mb-6 text-yellow-400">
+            도감 ({userData.collection.length} / {STAMPS.length})
+          </h2>
           
-          {/* 컬렉션 그리드 */}
-          <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4 overflow-y-auto pb-10">
+          {/* 💡 [수정2] 모바일(기본) 2칸, 태블릿 4칸, PC 6칸 / 간격(gap) 조정 */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4 overflow-y-auto pb-10 w-full px-1">
             {STAMPS.map(stamp => {
               const isUnlocked = userData.collection.includes(stamp.id);
               
-              // 💡 [수정] 일반 테두리 추가 및 희귀/전설 색상 스왑!
               let rarityClass = "";
-              if (stamp.rarity === '일반') {
-                rarityClass = "text-slate-100 bg-slate-700/60 border border-slate-600/50";
-              } else if (stamp.rarity === '희귀') {
-                // 기존 전설 색상 (노랑 + 주황 테두리)
-                rarityClass = "text-yellow-400 bg-orange-950/60 border border-orange-500/40";
-              } else if (stamp.rarity === '전설') {
-                // 기존 희귀 색상 (보라 + 보라 테두리)
-                rarityClass = "text-purple-400 bg-purple-950/50 border border-purple-500/30";
-              }
+              if (stamp.rarity === '일반') rarityClass = "text-slate-100 bg-slate-700/60 border border-slate-600/50";
+              else if (stamp.rarity === '희귀') rarityClass = "text-yellow-400 bg-orange-950/60 border border-orange-500/40";
+              else if (stamp.rarity === '전설') rarityClass = "text-purple-400 bg-purple-950/50 border border-purple-500/30";
 
               return (
                 <div 
                   key={stamp.id} 
                   onClick={() => setSelectedStamp({ ...stamp, isUnlocked })}
-                  className="flex flex-col items-center bg-slate-800 p-2 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors border border-slate-700"
+                  // 💡 모바일에서 카드가 너무 답답하지 않게 안쪽 여백(p-3) 증가
+                  className="flex flex-col items-center bg-slate-800 p-3 sm:p-2 rounded-lg cursor-pointer 
+                             hover:bg-slate-700 hover:brightness-110 transition-all duration-150 border border-slate-700 
+                             transform translate-z-0 will-change-transform w-full"
                 >
-                  {/* 상단 레이아웃 */}
-                  <div className="flex justify-between items-center w-full mb-2">
-                    <div className="text-xs text-slate-500 font-bold">No.{String(stamp.id).padStart(3, '0')}</div>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold scale-90 ${rarityClass}`}>
+                  {/* 상단 레이아웃 (번호와 배지가 겹치지 않게 gap-1 및 shrink-0 추가) */}
+                  <div className="flex justify-between items-center w-full mb-3 sm:mb-2 pointer-events-none gap-1">
+                    <div className="text-xs text-slate-500 font-bold whitespace-nowrap">No.{String(stamp.id).padStart(3, '0')}</div>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold whitespace-nowrap shrink-0 ${rarityClass}`}>
                       {stamp.rarity}
                     </span>
                   </div>
 
+                  {/* 💡 모바일에서 2열이 되면 카드가 커지므로 이미지도 살짝(w-24) 키움 */}
                   <img 
                     src={`/stamps/${stamp.filename}`} 
                     alt="stamp" 
-                    className={`w-20 h-20 object-contain ${!isUnlocked ? 'brightness-0 opacity-40' : ''}`} 
+                    className={`w-24 h-24 sm:w-20 sm:h-20 object-contain pointer-events-none ${!isUnlocked ? 'brightness-0 opacity-40' : ''}`} 
                   />
-                  <div className="mt-2 text-sm font-bold text-center w-full truncate">
+                  <div className="mt-3 sm:mt-2 text-sm font-bold text-center w-full truncate pointer-events-none px-1">
                     {isUnlocked ? stamp.name : '???'}
                   </div>
                 </div>
