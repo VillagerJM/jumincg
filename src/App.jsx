@@ -42,7 +42,7 @@ const CustomFontSetup = () => (
       50% { transform: translateY(-8px); } /* 기존보다 훨씬 낮은 8px만 뜀 */
     }
     .animate-short-bounce {
-      animation: short-bounce 1s ease-in-out infinite;
+      animation: short-bounce 0.7s ease-in-out infinite;
     }
   `}</style>
 );
@@ -426,7 +426,8 @@ export default function App() {
               }
             },
             borderClass,
-            "w-20 sm:w-24 md:w-28"
+            // ✅ 기존 고정 픽셀(w-28 등)에서 화면 높이 비례(12vh)로 교체하여 큰 화면에서 카드가 커지도록 함
+            "w-[12vh] min-w-[70px] max-w-[140px]"
           );
         })}
       </div>
@@ -529,12 +530,11 @@ export default function App() {
         {/* 2. 중앙 게임 영역 (상대필드 28% + 내필드 28% + 손패 28% = 총 84%) */}
         <div 
           className="h-[84vh] w-full flex flex-col relative"
-          onClick={() => setSelectedAttackerIdx(null)} /* ✅ 빈 공간 클릭 시에만 이게 작동합니다 */
+          onClick={() => setSelectedAttackerIdx(null)}
         >
           
-          
-          {/* 🔴 상대방 필드 (가장 아래층: z-10 부여) */}
-          <div className="h-[28vh] w-full flex flex-col justify-end pb-2 relative z-10">
+          {/* 🔴 상대방 필드 (기존 justify-end를 justify-center로 변경하여 위아래 여백을 균등하게 분배) */}
+          <div className="h-[28vh] w-full flex flex-col justify-center relative z-10">
             {oppState.field.length === 0 && <div className="text-xs text-slate-600 text-center mb-2">상대 진영 비어있음</div>}
             {renderDynamicGridField(oppState.field, true)}
           </div>
@@ -542,13 +542,13 @@ export default function App() {
           {/* 중앙 경계선 (높이 차지 않음) */}
           <div className="w-full border-t-[2px] border-dashed border-stone-800/80 shrink-0 relative z-0"></div>
 
-          {/* 🟡 내 필드 (중간층: z-20 부여) */}
-          <div className="h-[28vh] w-full flex flex-col justify-start pt-2 relative z-20">
+          {/* 🟡 내 필드 (기존 justify-start를 justify-center로 변경하여 위아래 여백을 균등하게 분배) */}
+          <div className="h-[28vh] w-full flex flex-col justify-center relative z-20">
             {myState.field.length === 0 && <div className="text-xs text-slate-600 text-center mt-2">아군 진영 비어있음</div>}
             {renderDynamicGridField(myState.field, false)}
           </div>
 
-          {/* 🟢 내 손패 (가장 위층: z-30 부여 및 overflow-visible 유지) */}
+          {/* 🟢 내 손패 */}
           <div className="h-[28vh] w-full flex justify-center items-end pb-3 overflow-visible px-2 relative z-30">
             {(myState.hand || []).map((card, idx) => {
               const isPlayable = isMyTurn && myState.energy >= card.cost;
@@ -557,7 +557,8 @@ export default function App() {
                 card,
                 () => isMyTurn && playCard(idx),
                 borderClass,
-                "w-24 sm:w-28 md:w-32 shrink-0 mx-1.5"
+                // ✅ 손패 카드도 화면 높이 비례(16vh)로 교체하여 큰 모니터에서 큼직하게 보이게 함
+                "w-[16vh] min-w-[90px] max-w-[180px] shrink-0 mx-1.5"
               );
             })}
           </div>
