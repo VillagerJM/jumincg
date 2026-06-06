@@ -35,6 +35,15 @@ const CustomFontSetup = () => (
 
     .tcg-theme { font-family: 'MyCustomFont', sans-serif; }
     .tcg-number { font-family: 'MyNumberFont', sans-serif; font-weight: bold; }
+
+    /* ✅ 추가: 짧고 부드러운 점프 애니메이션 */
+    @keyframes short-bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); } /* 기존보다 훨씬 낮은 8px만 뜀 */
+    }
+    .animate-short-bounce {
+      animation: short-bounce 1s ease-in-out infinite;
+    }
   `}</style>
 );
 
@@ -147,9 +156,15 @@ export default function App() {
           const playerBDeck = shuffleDeck(DEFAULT_DECK);
 
           await setDoc(roomRef, {
-            playerA: { uid: user.uid, email: user.email, hp: 30, energy: isUserFirst ? 1 : 0, maxEnergy: isUserFirst ? 1 : 0, turnCount: isUserFirst ? 1 : 0, field: [], hand: playerADeck.splice(0, 3), deck: playerADeck },
-            playerB: { uid: opponentData.uid, email: opponentData.email, hp: 30, energy: isUserFirst ? 0 : 1, maxEnergy: isUserFirst ? 0 : 1, turnCount: isUserFirst ? 0 : 1, field: [], hand: playerBDeck.splice(0, 4), deck: playerBDeck },
+            // ✅ 기존의 turnCount: isUserFirst ? 1 : 0 부분을 삭제했습니다.
+            playerA: { uid: user.uid, email: user.email, hp: 30, energy: isUserFirst ? 1 : 0, maxEnergy: isUserFirst ? 1 : 0, field: [], hand: playerADeck.splice(0, 3), deck: playerADeck },
+            playerB: { uid: opponentData.uid, email: opponentData.email, hp: 30, energy: isUserFirst ? 0 : 1, maxEnergy: isUserFirst ? 0 : 1, field: [], hand: playerBDeck.splice(0, 4), deck: playerBDeck },
             currentTurnUid: isUserFirst ? user.uid : opponentData.uid,
+            
+            // ✅ 새롭게 추가된 공통 턴 관리 데이터
+            firstPlayerUid: isUserFirst ? user.uid : opponentData.uid, // 누가 선공인지 기록
+            globalTurn: 1, // 공통 게임 턴 카운터
+            
             winner: null,
             status: 'playing'
           });
@@ -239,18 +254,26 @@ export default function App() {
     const oppRole = getOpponentRole();
     if (!gameState || gameState.currentTurnUid !== user.uid || !myRole) return;
 
-    const nextTurnCount = gameState[oppRole].turnCount + 1;
-    let nextMaxEnergy = nextTurnCount > 7 ? 7 : nextTurnCount;
-
     const updatedData = { ...gameState };
+
+    // ✅ 공통 턴 증가 로직: '후공 플레이어'가 턴을 마칠 때만 게임의 턴(globalTurn)을 1 올립니다.
+    const isSecondPlayerEndingTurn = user.uid !== gameState.firstPlayerUid;
+    if (isSecondPlayerEndingTurn) {
+      updatedData.globalTurn = (updatedData.globalTurn || 1) + 1;
+    }
+
+    // ✅ 에너지 부여 로직 (공통 턴 기준)
+    const currentGlobalTurn = updatedData.globalTurn || 1;
+    let nextMaxEnergy = currentGlobalTurn > 7 ? 7 : currentGlobalTurn;
+
     updatedData[oppRole].maxEnergy = nextMaxEnergy;
     updatedData[oppRole].energy = nextMaxEnergy;
-    updatedData[oppRole].turnCount = nextTurnCount;
 
     if (updatedData[oppRole].deck.length > 0) {
       const drawnCard = updatedData[oppRole].deck.shift();
       if (updatedData[oppRole].hand.length < 10) updatedData[oppRole].hand.push(drawnCard);
     }
+    
     updatedData[myRole].field = updatedData[myRole].field.map(card => ({ ...card, canAttack: true }));
     updatedData.currentTurnUid = gameState[oppRole].uid;
 
@@ -331,17 +354,22 @@ export default function App() {
   // 🃏 그림자 제거 및 색상 커스텀 텍스트 렌더러 (z값 레이어 정상화 + cqw 반응형 글자 적용)
   // 🃏 그림자 제거 및 색상 커스텀 텍스트 렌더러
   // 🃏 일러스트 정렬 영점 패치 완료 버전 (cqw 반응형 단위 유지)
+  // 🃏 일러스트 정렬 영점 패치 완료 버전 (cqw 반응형 단위 유지 + 선택 버블링 완벽 차단)
   const renderPremiumCard = (card, onClick, borderClass, sizeClass = "w-24 sm:w-28 md:w-32") => {
     const normalizedId = card.id.split('_')[0]; 
     const illustrationPath = `/images/cards/${normalizedId}.png`;
 
     return (
       <div
-        onClick={onClick}
+        // ✅ 카드를 클릭했을 때 뒷배경(빈공간) 취소 이벤트가 실행되지 않도록 여기서 완벽히 차단!
+        onClick={(e) => {
+          e.stopPropagation();
+          if (onClick) onClick();
+        }}
         className={`relative ${sizeClass} aspect-[3/4] rounded-xl overflow-hidden shadow-2xl select-none transition-all cursor-pointer box-border border-[3px] ${borderClass} hover:z-50`}
         style={{ containerType: 'inline-size' }}
       >
-        {/* 1. 배경 일러스트 (✅ 레이아웃 틀과 1:1 싱크를 위해 object-fill로 완전히 일치시킴) */}
+        {/* 1. 배경 일러스트 */}
         <img 
           src={illustrationPath} 
           alt={card.name} 
@@ -359,74 +387,18 @@ export default function App() {
           }}
         />
 
-        {/* 3. 텍스트 레이어 (⚠️ 중요: 슬라이더 조절을 위해 cqw 단위 완벽 유지!) */}
+        {/* 3. 텍스트 레이어 */}
         <div className="absolute inset-0 z-20">
           
-          {/* 코스트 숫자 (흰색) */}
-          <span 
-            className="tcg-number font-black text-white absolute leading-none"
-            style={{ 
-              top: `${coords.costTop}%`, 
-              left: `${coords.costLeft}%`, 
-              fontSize: `${coords.costSize}cqw` 
-            }}
-          >
-            {card.cost}
-          </span>
-
-          {/* 카드 이름 (검은색) */}
-          <span 
-            className="font-black truncate absolute text-left tracking-tighter text-black"
-            style={{ 
-              top: `${coords.nameTop}%`, 
-              left: `${coords.nameLeft}%`, 
-              fontSize: `${coords.nameSize}cqw`, 
-              width: `${100 - coords.nameLeft - 10}%`
-            }}
-          >
-            {card.name}
-          </span>
-
-          {/* 능력 설명글 (검은색, 위쪽 정렬 적용) */}
-          <div 
-            className="absolute leading-tight text-black overflow-hidden flex flex-col justify-start"
-            style={{ 
-              top: `${coords.abilityTop}%`, 
-              left: `${coords.abilityLeft}%`, 
-              width: `${coords.abilityWidth}%`, 
-              fontSize: `${coords.abilitySize}cqw`, 
-              height: `${coords.abilityHeight}%`
-            }}
-          >
-            <p className="line-clamp-3 font-medium">
-              {card.ability !== '능력 없음' ? card.ability : ''}
-            </p>
+          <span className="tcg-number font-black text-white absolute leading-none" style={{ top: `${coords.costTop}%`, left: `${coords.costLeft}%`, fontSize: `${coords.costSize}cqw` }}>{card.cost}</span>
+          <span className="font-black truncate absolute text-left tracking-tighter text-black" style={{ top: `${coords.nameTop}%`, left: `${coords.nameLeft}%`, fontSize: `${coords.nameSize}cqw`, width: `${100 - coords.nameLeft - 10}%` }}>{card.name}</span>
+          
+          <div className="absolute leading-tight text-black overflow-hidden flex flex-col justify-start" style={{ top: `${coords.abilityTop}%`, left: `${coords.abilityLeft}%`, width: `${coords.abilityWidth}%`, fontSize: `${coords.abilitySize}cqw`, height: `${coords.abilityHeight}%` }}>
+            <p className="line-clamp-3 font-medium">{card.ability !== '능력 없음' ? card.ability : ''}</p>
           </div>
 
-          {/* 공격력 수치 */}
-          <span 
-            className="tcg-number font-black text-amber-400 absolute leading-none"
-            style={{ 
-              top: `${coords.atkTop}%`, 
-              left: `${coords.atkLeft}%`, 
-              fontSize: `${coords.atkSize}cqw` 
-            }}
-          >
-            {card.atk}
-          </span>
-
-          {/* 체력 수치 */}
-          <span 
-            className="tcg-number font-black text-red-400 absolute leading-none"
-            style={{ 
-              top: `${coords.hpTop}%`, 
-              left: `${coords.hpLeft}%`, 
-              fontSize: `${coords.hpSize}cqw` 
-            }}
-          >
-            {card.hp}
-          </span>
-
+          <span className="tcg-number font-black text-amber-400 absolute leading-none" style={{ top: `${coords.atkTop}%`, left: `${coords.atkLeft}%`, fontSize: `${coords.atkSize}cqw` }}>{card.atk}</span>
+          <span className="tcg-number font-black text-red-400 absolute leading-none" style={{ top: `${coords.hpTop}%`, left: `${coords.hpLeft}%`, fontSize: `${coords.hpSize}cqw` }}>{card.hp}</span>
         </div>
       </div>
     );
@@ -434,13 +406,14 @@ export default function App() {
 
   const renderDynamicGridField = (fieldCards, isOpponentField) => {
     return (
-      <div className="w-full flex justify-center items-center gap-4 py-1 min-h-[140px] relative">
+      // ✅ min-h-[140px] 제거, 비율에 맞춰 자연스럽게 배치되도록 수정
+      <div className="w-full flex justify-center items-center gap-4 px-2 overflow-visible">
         {fieldCards.map((card, idx) => {
           let borderClass = 'border-stone-900';
           if (isOpponentField) {
             borderClass = selectedAttackerIdx !== null && isMyTurn ? 'border-red-500 animate-pulse scale-105 shadow-xl shadow-red-600/50' : 'border-red-950/40';
           } else {
-            borderClass = selectedAttackerIdx === idx ? 'border-yellow-400 scale-105 shadow-xl shadow-yellow-500/70' : card.canAttack && isMyTurn ? 'border-green-400 animate-bounce' : 'border-blue-950/40';
+            borderClass = selectedAttackerIdx === idx ? 'border-yellow-400 scale-105 shadow-xl shadow-yellow-500/70' : card.canAttack && isMyTurn ? 'border-green-400 animate-short-bounce' : 'border-blue-950/40';
           }
 
           return renderPremiumCard(
@@ -528,53 +501,55 @@ export default function App() {
   if (!myState || !oppState) return <div className="h-screen bg-stone-900 text-white flex items-center justify-center">데이터 동기화 중...</div>;
 
   return (
-    <div className="tcg-theme h-screen max-h-screen w-full bg-stone-900 text-white flex overflow-hidden select-none box-border p-1">
+    <div className="tcg-theme h-screen max-h-screen w-full bg-stone-900 text-white flex overflow-hidden select-none box-border">
       <CustomFontSetup />
       
-      <div className="flex-1 flex flex-col justify-between h-full p-2 bg-gradient-to-b from-stone-900 via-stone-950 to-stone-900 overflow-hidden">
+      {/* ✅ 패딩을 제거하고 화면 높이(vh) 비율을 정확히 나누는 메인 컨테이너 */}
+      <div className="flex-1 flex flex-col h-full w-full bg-gradient-to-b from-stone-900 via-stone-950 to-stone-900 overflow-hidden relative">
         
-        <div className="bg-slate-900/90 rounded-lg px-3 py-1 flex justify-between items-center border border-red-950/40 h-[6vh] min-h-[40px]">
+        {/* 1. 상대방 상태창 (화면 높이의 8%) */}
+        <div className="h-[8vh] min-h-[40px] bg-slate-900/90 px-4 flex justify-between items-center border-b border-red-950/40 shadow-lg z-10 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="text-xs text-red-400 font-black max-w-[120px] truncate">{oppState.email.split('@')[0]}</div>
-            <div className="text-[10px] text-slate-400 font-medium">덱: {oppState.deck?.length}장 | 패: {oppState.hand?.length}장</div>
+            <div className="text-sm text-red-400 font-black max-w-[120px] truncate">{oppState.email.split('@')[0]}</div>
+            <div className="text-xs text-slate-400 font-medium">덱: {oppState.deck?.length}장 | 패: {oppState.hand?.length}장</div>
           </div>
           
           <div className="flex items-center gap-4">
             {selectedAttackerIdx !== null && isMyTurn && (
-              <button onClick={() => attackTarget('hero')} className="px-2 py-0.5 bg-red-600 font-black rounded text-[10px] shadow-lg animate-pulse">🎯 명치치기</button>
+              <button onClick={() => attackTarget('hero')} className="px-3 py-1 bg-red-600 font-black rounded text-xs shadow-lg animate-pulse">🎯 명치치기</button>
             )}
-            <div className="flex items-center gap-1 bg-red-950/80 px-3 py-0.5 rounded-md border border-red-800 text-xs font-black text-red-300">
-              <span className="text-[9px] text-red-400">HP</span> {oppState.hp}
+            <div className="flex items-center gap-1 bg-red-950/80 px-3 py-1 rounded-md border border-red-800 text-sm font-black text-red-300">
+              <span className="text-xs text-red-400">HP</span> {oppState.hp}
             </div>
           </div>
 
-          <div className="text-xs font-mono text-amber-500 font-bold">⚡ {oppState.energy} / {oppState.maxEnergy}</div>
+          <div className="text-sm font-mono text-amber-500 font-bold">⚡ {oppState.energy} / {oppState.maxEnergy}</div>
         </div>
 
-        {/* ⚔️ 2. 배틀 필드 구역 (overflow-hidden 제거 및 z-index 층 지정) */}
-        <div className="flex-1 flex flex-col justify-center gap-2 my-1 relative">
+        {/* 2. 중앙 게임 영역 (상대필드 28% + 내필드 28% + 손패 28% = 총 84%) */}
+        <div 
+          className="h-[84vh] w-full flex flex-col relative"
+          onClick={() => setSelectedAttackerIdx(null)} /* ✅ 빈 공간 클릭 시에만 이게 작동합니다 */
+        >
           
-          {/* 상대 필드 (가장 바닥: z-10) */}
-          <div className="w-full relative z-10">
-            {oppState.field.length === 0 && <div className="text-[10px] text-slate-600 text-center h-[20px]">상대 진영 비어있음</div>}
+          
+          {/* 🔴 상대방 필드 (가장 아래층: z-10 부여) */}
+          <div className="h-[28vh] w-full flex flex-col justify-end pb-2 relative z-10">
+            {oppState.field.length === 0 && <div className="text-xs text-slate-600 text-center mb-2">상대 진영 비어있음</div>}
             {renderDynamicGridField(oppState.field, true)}
           </div>
           
-          <div className="w-full border-t border-dashed border-stone-800 relative z-10"></div>
+          {/* 중앙 경계선 (높이 차지 않음) */}
+          <div className="w-full border-t-[2px] border-dashed border-stone-800/80 shrink-0 relative z-0"></div>
 
-          {/* 아군 필드 (중간 층: z-20) */}
-          <div className="w-full relative z-20">
-            {myState.field.length === 0 && <div className="text-[10px] text-slate-600 text-center h-[20px]">아군 진영 비어있음</div>}
+          {/* 🟡 내 필드 (중간층: z-20 부여) */}
+          <div className="h-[28vh] w-full flex flex-col justify-start pt-2 relative z-20">
+            {myState.field.length === 0 && <div className="text-xs text-slate-600 text-center mt-2">아군 진영 비어있음</div>}
             {renderDynamicGridField(myState.field, false)}
           </div>
-        </div>
 
-        {/* 🎒 3. 하단 컨트롤 구역 (내 손패가 가장 최상단: z-30) */}
-        <div className="flex flex-col gap-1 h-[36vh] justify-end relative z-30">
-          
-          {/* overflow-x-auto 삭제하여 손패가 위로 튀어나올 때 잘리는 현상 방지 */}
-          {/* 🎒 내 손패 렌더링 구역 */}
-          <div className="flex justify-center gap-2 p-1 items-end max-h-[26vh] overflow-visible">
+          {/* 🟢 내 손패 (가장 위층: z-30 부여 및 overflow-visible 유지) */}
+          <div className="h-[28vh] w-full flex justify-center items-end pb-3 overflow-visible px-2 relative z-30">
             {(myState.hand || []).map((card, idx) => {
               const isPlayable = isMyTurn && myState.energy >= card.cost;
               const borderClass = isPlayable ? 'border-amber-400 hover:border-yellow-300 hover:-translate-y-4 shadow-amber-500/20' : 'border-slate-950 opacity-50';
@@ -582,37 +557,39 @@ export default function App() {
                 card,
                 () => isMyTurn && playCard(idx),
                 borderClass,
-                "w-32 sm:w-32 md:w-36" /* ✅ 기존 "w-24 sm:w-26 md:w-28"에서 30%가량 대폭 확대 */
+                "w-24 sm:w-28 md:w-32 shrink-0 mx-1.5"
               );
             })}
           </div>
 
-          <div className="bg-slate-900/95 rounded-lg px-3 py-1 flex justify-between items-center border border-slate-800 h-[6vh] min-h-[45px]">
-            <div className="flex items-center gap-3">
-              <button onClick={handleSurrender} className="px-2 py-0.5 bg-stone-800 text-red-400 rounded text-[10px] font-bold hover:bg-red-950">🏳️ 기권</button>
-              <div className="text-[10px] text-slate-400">덱: {myState.deck?.length}장</div>
-            </div>
+        </div>
 
-            <div className="flex items-center gap-3">
-              <div className="bg-slate-800 px-2 py-0.5 rounded text-[10px] text-amber-400 font-bold">TURN {myState.turnCount}</div>
-              <div className="flex items-center gap-1 bg-blue-950/80 px-3 py-0.5 rounded-md border border-blue-800 text-xs font-black text-blue-300">
-                <span className="text-[9px] text-blue-400">HP</span> {myState.hp}
-              </div>
-            </div>
+        {/* 3. 내 상태창 (화면 높이의 8%) */}
+        <div className="h-[8vh] min-h-[45px] bg-slate-900/95 px-4 flex justify-between items-center border-t border-slate-800 shadow-lg z-10 shrink-0">
+          <div className="flex items-center gap-4">
+            <button onClick={handleSurrender} className="px-3 py-1 bg-stone-800 text-red-400 rounded text-xs font-bold hover:bg-red-950">🏳️ 기권</button>
+            <div className="text-xs text-slate-400">덱: {myState.deck?.length}장</div>
+          </div>
 
-            <div className="flex items-center gap-3">
-              <div className="font-mono text-xs text-amber-400 font-bold">⚡ {myState.energy}/{myState.maxEnergy}</div>
-              <button 
-                onClick={endTurn} 
-                disabled={!isMyTurn}
-                className={`px-3 py-1 font-black text-xs rounded-md shadow ${isMyTurn ? 'bg-amber-500 text-slate-950 animate-pulse' : 'bg-slate-800 text-slate-500'}`}
-              >
-                {isMyTurn ? '턴 종료 ⏱️' : '상대 턴'}
-              </button>
+          <div className="flex items-center gap-4">
+            <div className="bg-slate-800 px-3 py-1 rounded text-xs text-amber-400 font-bold">TURN {gameState.globalTurn || 1}</div>
+            <div className="flex items-center gap-1 bg-blue-950/80 px-4 py-1 rounded-md border border-blue-800 text-sm font-black text-blue-300">
+              <span className="text-xs text-blue-400">HP</span> {myState.hp}
             </div>
           </div>
 
+          <div className="flex items-center gap-4">
+            <div className="font-mono text-sm text-amber-400 font-bold">⚡ {myState.energy}/{myState.maxEnergy}</div>
+            <button 
+              onClick={endTurn} 
+              disabled={!isMyTurn}
+              className={`px-4 py-1.5 font-black text-sm rounded-md shadow-lg transition-transform ${isMyTurn ? 'bg-amber-500 text-slate-950 animate-pulse hover:scale-105' : 'bg-slate-800 text-slate-500'}`}
+            >
+              {isMyTurn ? '턴 종료 ⏱️' : '상대 턴'}
+            </button>
+          </div>
         </div>
+
       </div>
 
       {showTester && (
