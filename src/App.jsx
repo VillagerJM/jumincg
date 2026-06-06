@@ -406,8 +406,7 @@ export default function App() {
 
   const renderDynamicGridField = (fieldCards, isOpponentField) => {
     return (
-      // ✅ min-h-[140px] 제거, 비율에 맞춰 자연스럽게 배치되도록 수정
-      <div className="w-full flex justify-center items-center gap-4 px-2 overflow-visible">
+      <div className="w-full h-full flex justify-center items-center gap-4 px-2 overflow-visible">
         {fieldCards.map((card, idx) => {
           let borderClass = 'border-stone-900';
           if (isOpponentField) {
@@ -426,8 +425,7 @@ export default function App() {
               }
             },
             borderClass,
-            // ✅ 기존 고정 픽셀(w-28 등)에서 화면 높이 비례(12vh)로 교체하여 큰 화면에서 카드가 커지도록 함
-            "w-[12vh] min-w-[70px] max-w-[140px]"
+            "w-[15vh] shrink-0" /* 🔥 max-w 완전 삭제! 화면 높이의 15% 가로길이로 무한 비례 확대 */
           );
         })}
       </div>
@@ -529,27 +527,27 @@ export default function App() {
 
         {/* 2. 중앙 게임 영역 (상대필드 28% + 내필드 28% + 손패 28% = 총 84%) */}
         <div 
-          className="h-[84vh] w-full flex flex-col relative"
+          className="h-[84vh] w-full flex flex-col relative shrink-0"
           onClick={() => setSelectedAttackerIdx(null)}
         >
           
-          {/* 🔴 상대방 필드 (기존 justify-end를 justify-center로 변경하여 위아래 여백을 균등하게 분배) */}
-          <div className="h-[28vh] w-full flex flex-col justify-center relative z-10">
-            {oppState.field.length === 0 && <div className="text-xs text-slate-600 text-center mb-2">상대 진영 비어있음</div>}
+          {/* 🔴 상대방 필드 (무조건 28vh 고정) */}
+          <div className="h-[28vh] w-full flex justify-center items-center relative z-10 shrink-0">
+            {oppState.field.length === 0 && <div className="text-xs text-slate-600 text-center absolute">상대 진영 비어있음</div>}
             {renderDynamicGridField(oppState.field, true)}
           </div>
           
-          {/* 중앙 경계선 (높이 차지 않음) */}
-          <div className="w-full border-t-[2px] border-dashed border-stone-800/80 shrink-0 relative z-0"></div>
+          {/* 중앙 경계선 (자리를 차지하지 않도록 absolute 처리하여 정확히 1/3 지점에 배치) */}
+          <div className="absolute top-[33.33%] w-full border-t-[2px] border-dashed border-stone-800/80 z-0"></div>
 
-          {/* 🟡 내 필드 (기존 justify-start를 justify-center로 변경하여 위아래 여백을 균등하게 분배) */}
-          <div className="h-[28vh] w-full flex flex-col justify-center relative z-20">
-            {myState.field.length === 0 && <div className="text-xs text-slate-600 text-center mt-2">아군 진영 비어있음</div>}
+          {/* 🟡 내 필드 (무조건 28vh 고정) */}
+          <div className="h-[28vh] w-full flex justify-center items-center relative z-20 shrink-0">
+            {myState.field.length === 0 && <div className="text-xs text-slate-600 text-center absolute">아군 진영 비어있음</div>}
             {renderDynamicGridField(myState.field, false)}
           </div>
 
-          {/* 🟢 내 손패 */}
-          <div className="h-[28vh] w-full flex justify-center items-end pb-3 overflow-visible px-2 relative z-30">
+          {/* 🟢 내 손패 (무조건 28vh 고정) */}
+          <div className="h-[28vh] w-full flex justify-center items-end pb-3 overflow-visible px-2 relative z-30 shrink-0">
             {(myState.hand || []).map((card, idx) => {
               const isPlayable = isMyTurn && myState.energy >= card.cost;
               const borderClass = isPlayable ? 'border-amber-400 hover:border-yellow-300 hover:-translate-y-4 shadow-amber-500/20' : 'border-slate-950 opacity-50';
@@ -557,8 +555,7 @@ export default function App() {
                 card,
                 () => isMyTurn && playCard(idx),
                 borderClass,
-                // ✅ 손패 카드도 화면 높이 비례(16vh)로 교체하여 큰 모니터에서 큼직하게 보이게 함
-                "w-[16vh] min-w-[90px] max-w-[180px] shrink-0 mx-1.5"
+                "w-[18vh] shrink-0 mx-1.5" /* 🔥 손패 역시 max-w 박살! 화면 높이의 18%로 무한 확대 */
               );
             })}
           </div>
