@@ -4,6 +4,7 @@ import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from
 import { doc, setDoc, getDoc, updateDoc, onSnapshot, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 
 // 폰트 및 스타일 커스텀 (🌟 대형 모니터 선명도 최적화 패치)
+// 폰트 및 스타일 커스텀 (🌟 폰트 풀림 복구 + 대형 모니터 선명도 최종 패치)
 const CustomFontSetup = () => (
   <style>{`
     @font-face {
@@ -11,21 +12,29 @@ const CustomFontSetup = () => (
       src: url('/fonts/pfbold.ttf') format('truetype');
       font-weight: normal;
       font-style: normal;
+      font-display: block; /* 폰트 로딩 시 기본 폰트 깜빡임 방지 */
     }
     @font-face {
       font-family: 'MyNumberFont';
       src: url('/fonts/pfbold.ttf') format('truetype');
       font-weight: bold;
       font-style: normal;
+      font-display: block;
     }
     
-    /* ✅ 1. 폰트 스무딩을 정상화하여 대형 모니터에서 글씨가 자글자글해지는 현상 방지 */
+    /* 폰트 지정 및 가독성 최적화 */
     body, .tcg-theme, .tcg-number { 
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
+      font-family: 'MyCustomFont', sans-serif !important;
+      -webkit-font-smoothing: antialiased !important;
+      -moz-osx-font-smoothing: grayscale !important;
+      text-rendering: optimizeLegibility !important;
     }
 
-    /* ✅ 2. 픽셀 일러스트/프레임이 커져도 뿌옇게 번지지 않고 도트 느낌을 칼같이 유지하도록 설정 */
+    .tcg-number {
+      font-family: 'MyNumberFont', sans-serif !important;
+    }
+
+    /* 픽셀 아트 일러스트/프레임이 커져도 깨지거나 흐려지지 않게 칼각 유지 */
     .pixel-art {
       image-rendering: -moz-crisp-edges;
       image-rendering: -webkit-optimize-contrast;
@@ -33,13 +42,10 @@ const CustomFontSetup = () => (
       image-rendering: pixelated;
     }
 
-    .tcg-theme { font-family: 'MyCustomFont', sans-serif; }
-    .tcg-number { font-family: 'MyNumberFont', sans-serif; font-weight: bold; }
-
-    /* ✅ 추가: 짧고 부드러운 점프 애니메이션 */
+    /* 카드 점프(공격 준비) 애니메이션 - GPU 가속 연동용 */
     @keyframes short-bounce {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-8px); } /* 기존보다 훨씬 낮은 8px만 뜀 */
+      0%, 100% { transform: translateY(0) translateZ(0); }
+      50% { transform: translateY(-8px) translateZ(0); } 
     }
     .animate-short-bounce {
       animation: short-bounce 0.7s ease-in-out infinite;
@@ -361,15 +367,16 @@ export default function App() {
 
     return (
       <div
-        // ✅ 카드를 클릭했을 때 뒷배경(빈공간) 취소 이벤트가 실행되지 않도록 여기서 완벽히 차단!
         onClick={(e) => {
           e.stopPropagation();
           if (onClick) onClick();
         }}
-        className={`relative ${sizeClass} aspect-[3/4] rounded-xl overflow-hidden shadow-2xl select-none transition-all cursor-pointer box-border border-[3px] ${borderClass} hover:z-50`}
+        // ✅ 1. aspect-[3/4]를 aspect-[5/7]로 변경하여 뚱뚱해짐 방지
+        // ✅ 2. transform-gpu와 will-change-transform을 추가하여 점프 시 깜빡임(Flickering) 원천 차단
+        className={`relative ${sizeClass} aspect-[5/7] rounded-xl overflow-hidden shadow-2xl select-none transition-all cursor-pointer box-border border-[3px] ${borderClass} hover:z-50 transform-gpu will-change-transform`}
         style={{ containerType: 'inline-size' }}
       >
-        {/* 1. 배경 일러스트 (✅ pixel-art 클래스 추가) */}
+        {/* 1. 배경 일러스트 (이하 기존 코드 유지) */}
         <img 
           src={illustrationPath} 
           alt={card.name} 
