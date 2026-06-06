@@ -3,8 +3,7 @@ import { auth, db } from './firebase';
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, onSnapshot, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 
-// 폰트 및 스타일 커스텀 (그림자/윤곽선 제거됨)
-// 폰트 및 스타일 커스텀 (그림자/윤곽선 제거 + 🌟 대형 모니터 글자 흐림 방지 패치)
+// 폰트 및 스타일 커스텀 (🌟 대형 모니터 선명도 최적화 패치)
 const CustomFontSetup = () => (
   <style>{`
     @font-face {
@@ -20,17 +19,18 @@ const CustomFontSetup = () => (
       font-style: normal;
     }
     
-    /* ✅ 1. 전체 앱에 고해상도 안티앨리어싱(외곽선 다듬기) 강제 적용 */
-    /* 도트(픽셀) 폰트 전용 선명도 옵션 */
+    /* ✅ 1. 폰트 스무딩을 정상화하여 대형 모니터에서 글씨가 자글자글해지는 현상 방지 */
     body, .tcg-theme, .tcg-number { 
-      -webkit-font-smoothing: none;
-      font-smooth: never;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
-    /* ✅ 2. 동적 크기 변환 시 텍스트가 흐려지는 현상 완화 (하드웨어 가속) */
-    .tcg-theme, .tcg-number, span, p {
-      transform: translateZ(0);
-      backface-visibility: hidden;
+    /* ✅ 2. 픽셀 일러스트/프레임이 커져도 뿌옇게 번지지 않고 도트 느낌을 칼같이 유지하도록 설정 */
+    .pixel-art {
+      image-rendering: -moz-crisp-edges;
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+      image-rendering: pixelated;
     }
 
     .tcg-theme { font-family: 'MyCustomFont', sans-serif; }
@@ -369,19 +369,19 @@ export default function App() {
         className={`relative ${sizeClass} aspect-[3/4] rounded-xl overflow-hidden shadow-2xl select-none transition-all cursor-pointer box-border border-[3px] ${borderClass} hover:z-50`}
         style={{ containerType: 'inline-size' }}
       >
-        {/* 1. 배경 일러스트 */}
+        {/* 1. 배경 일러스트 (✅ pixel-art 클래스 추가) */}
         <img 
           src={illustrationPath} 
           alt={card.name} 
-          className="absolute inset-0 w-full h-full object-fill"
+          className="absolute inset-0 w-full h-full object-fill pixel-art"
           onError={(e) => { e.target.style.display = 'none'; }}
         />
 
-        {/* 2. 카드 프레임 틀 */}
+        {/* 2. 카드 프레임 틀 (✅ pixel-art 클래스 추가) */}
         <img 
           src="/images/card_layout.png" 
           alt="Frame" 
-          className="absolute inset-0 w-full h-full object-fill pointer-events-none z-10"
+          className="absolute inset-0 w-full h-full object-fill pointer-events-none z-10 pixel-art"
           onError={(e) => {
             e.target.className = "absolute inset-0 w-full h-full border border-stone-800 pointer-events-none bg-gradient-to-t from-black/80 to-transparent z-10";
           }}
