@@ -5,44 +5,45 @@ import { doc, setDoc, getDoc, updateDoc, onSnapshot, collection, query, where, g
 
 // 폰트 및 스타일 커스텀 (🌟 대형 모니터 선명도 최적화 패치)
 // 폰트 및 스타일 커스텀 (🌟 폰트 풀림 복구 + 대형 모니터 선명도 최종 패치)
+// 폰트 및 스타일 커스텀 (🌟 텍스트 원형 보존 및 이미지 픽셀화 롤백 패치)
 const CustomFontSetup = () => (
   <style>{`
     @font-face {
       font-family: 'MyCustomFont';
-      src: url('/fonts/pfbold.ttf') format('truetype');
+      /* ✅ WOFF2(웹 최적화 포맷)를 먼저 찾고, 없으면 기존 TTF를 쓰도록 다중 설정 */
+      src: url('/fonts/pfbold.woff2') format('woff2'),
+           url('/fonts/pfbold.ttf') format('truetype');
       font-weight: normal;
       font-style: normal;
-      font-display: block; /* 폰트 로딩 시 기본 폰트 깜빡임 방지 */
+      font-display: block;
     }
     @font-face {
       font-family: 'MyNumberFont';
-      src: url('/fonts/pfbold.ttf') format('truetype');
+      src: url('/fonts/pfbold.woff2') format('woff2'),
+           url('/fonts/pfbold.ttf') format('truetype');
       font-weight: bold;
       font-style: normal;
       font-display: block;
     }
     
-    /* 폰트 지정 및 가독성 최적화 */
+    /* 🌟 오직 텍스트의 '원형'과 '각'을 최우선으로 보존하는 렌더링 설정 */
     body, .tcg-theme, .tcg-number { 
       font-family: 'MyCustomFont', sans-serif !important;
-      -webkit-font-smoothing: antialiased !important;
+      
+      /* 픽셀 폰트의 칼각을 위해 브라우저의 자동 스무딩(흐림 필터)을 강제로 끕니다 */
+      -webkit-font-smoothing: none !important;
       -moz-osx-font-smoothing: grayscale !important;
-      text-rendering: optimizeLegibility !important;
+      font-smooth: never !important;
+      
+      /* 텍스트 기하학적 형태를 원본 그대로 유지 */
+      text-rendering: geometricPrecision !important; 
     }
 
     .tcg-number {
       font-family: 'MyNumberFont', sans-serif !important;
     }
 
-    /* 픽셀 아트 일러스트/프레임이 커져도 깨지거나 흐려지지 않게 칼각 유지 */
-    .pixel-art {
-      image-rendering: -moz-crisp-edges;
-      image-rendering: -webkit-optimize-contrast;
-      image-rendering: crisp-edges;
-      image-rendering: pixelated;
-    }
-
-    /* 카드 점프(공격 준비) 애니메이션 - GPU 가속 연동용 */
+    /* 카드 점프(공격 준비) 애니메이션 */
     @keyframes short-bounce {
       0%, 100% { transform: translateY(0) translateZ(0); }
       50% { transform: translateY(-8px) translateZ(0); } 
@@ -85,8 +86,8 @@ const INITIAL_LAYOUT_COORDS = {
   "costTop": 7,
   "costLeft": 10,
   "costSize": 10,
-  "nameTop": 3,
-  "nameLeft": 26,
+  "nameTop": 4,
+  "nameLeft": 25,
   "nameSize": 10,
   "abilityTop": 68,
   "abilityLeft": 8,
@@ -376,19 +377,19 @@ export default function App() {
         className={`relative ${sizeClass} aspect-[5/7] rounded-xl overflow-hidden shadow-2xl select-none transition-all cursor-pointer box-border border-[3px] ${borderClass} hover:z-50 transform-gpu will-change-transform`}
         style={{ containerType: 'inline-size' }}
       >
-        {/* 1. 배경 일러스트 (이하 기존 코드 유지) */}
+        {/* 1. 배경 일러스트 (✅ pixel-art 삭제 완료) */}
         <img 
           src={illustrationPath} 
           alt={card.name} 
-          className="absolute inset-0 w-full h-full object-fill pixel-art"
+          className="absolute inset-0 w-full h-full object-fill"
           onError={(e) => { e.target.style.display = 'none'; }}
         />
 
-        {/* 2. 카드 프레임 틀 (✅ pixel-art 클래스 추가) */}
+        {/* 2. 카드 프레임 틀 (✅ pixel-art 삭제 완료) */}
         <img 
           src="/images/card_layout.png" 
           alt="Frame" 
-          className="absolute inset-0 w-full h-full object-fill pointer-events-none z-10 pixel-art"
+          className="absolute inset-0 w-full h-full object-fill pointer-events-none z-10"
           onError={(e) => {
             e.target.className = "absolute inset-0 w-full h-full border border-stone-800 pointer-events-none bg-gradient-to-t from-black/80 to-transparent z-10";
           }}
