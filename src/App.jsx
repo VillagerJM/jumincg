@@ -4,6 +4,7 @@ import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from
 import { doc, setDoc, getDoc, updateDoc, onSnapshot, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 
 // 폰트 및 스타일 커스텀 (그림자/윤곽선 제거됨)
+// 폰트 및 스타일 커스텀 (그림자/윤곽선 제거 + 🌟 대형 모니터 글자 흐림 방지 패치)
 const CustomFontSetup = () => (
   <style>{`
     @font-face {
@@ -18,6 +19,20 @@ const CustomFontSetup = () => (
       font-weight: bold;
       font-style: normal;
     }
+    
+    /* ✅ 1. 전체 앱에 고해상도 안티앨리어싱(외곽선 다듬기) 강제 적용 */
+    /* 도트(픽셀) 폰트 전용 선명도 옵션 */
+    body, .tcg-theme, .tcg-number { 
+      -webkit-font-smoothing: none;
+      font-smooth: never;
+    }
+
+    /* ✅ 2. 동적 크기 변환 시 텍스트가 흐려지는 현상 완화 (하드웨어 가속) */
+    .tcg-theme, .tcg-number, span, p {
+      transform: translateZ(0);
+      backface-visibility: hidden;
+    }
+
     .tcg-theme { font-family: 'MyCustomFont', sans-serif; }
     .tcg-number { font-family: 'MyNumberFont', sans-serif; font-weight: bold; }
   `}</style>
