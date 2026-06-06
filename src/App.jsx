@@ -1,226 +1,264 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { auth, db } from './firebase'; 
-import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc, updateDoc, onSnapshot, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, setDoc, getDoc, updateDoc, onSnapshot, collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 
-// 엑셀에서 추출한 고정 덱 목록 (20장)
+// 폰트 및 스타일 커스텀 (그림자/윤곽선 제거됨)
+const CustomFontSetup = () => (
+  <style>{`
+    @font-face {
+      font-family: 'MyCustomFont';
+      src: url('/fonts/pfbold.ttf') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'MyNumberFont';
+      src: url('/fonts/pfbold.ttf') format('truetype');
+      font-weight: bold;
+      font-style: normal;
+    }
+    .tcg-theme { font-family: 'MyCustomFont', sans-serif; }
+    .tcg-number { font-family: 'MyNumberFont', sans-serif; font-weight: bold; }
+  `}</style>
+);
+
 const DEFAULT_DECK = [
-  { id: 'k1', name: '용맹한 기사', cost: 1, atk: 1, hp: 2, ability: '등장: 내 다른 카드 한 장에 공격력을 1 부여합니다.', tag: '등장' },
-  { id: 'k2', name: '멍멍이', cost: 1, atk: 1, hp: 3, ability: '능력 없음', tag: '능력 없음' },
-  { id: 'k3', name: '유령', cost: 4, atk: 0, hp: 1, ability: '이 카드는 처치되지 않습니다.', tag: '패시브' },
-  { id: 'k4', name: '강령술사', cost: 4, atk: 4, hp: 4, ability: '등장: 부활', tag: '등장' },
-  { id: 'k5', name: '바람 마법사', cost: 3, atk: 3, hp: 4, ability: '등장: 바운스', tag: '등장' },
-  { id: 'k6', name: '도적단', cost: 2, atk: 2, hp: 2, ability: '등장: 훔치기', tag: '등장' },
-  { id: 'k7', name: '겁쟁이 기사', cost: 2, atk: 1, hp: 3, ability: '등장: 공격력+1', tag: '등장' },
-  { id: 'd7', name: '7번 드래곤', cost: 7, atk: 7, hp: 7, ability: '능력 없음', tag: '능력 없음' },
-  { id: 'd6', name: '6번 드래곤', cost: 6, atk: 6, hp: 6, ability: '능력 없음', tag: '능력 없음' },
-  { id: 'd5', name: '5번 드래곤', cost: 5, atk: 5, hp: 5, ability: '능력 없음', tag: '능력 없음' },
-  { id: 'd4', name: '4번 드래곤', cost: 4, atk: 4, hp: 4, ability: '능력 없음', tag: '능력 없음' },
-  { id: 'd3', name: '3번 드래곤', cost: 3, atk: 3, hp: 3, ability: '능력 없음', tag: '능력 없음' },
-  { id: 'd2', name: '2번 드래곤', cost: 2, atk: 2, hp: 2, ability: '능력 없음', tag: '능력 없음' },
-  { id: 'd1', name: '1번 드래곤', cost: 1, atk: 1, hp: 1, ability: '능력 없음', tag: '능력 없음' },
-  { id: 'k8', name: '음악인', cost: 7, atk: 4, hp: 6, ability: '등장: 비용 감소', tag: '등장' },
-  // 20장을 채우기 위한 드래곤 및 기본 카드 복사본들
-  { id: 'd1_2', name: '1번 드래곤', cost: 1, atk: 1, hp: 1, ability: '능력 없음', tag: '능력 없음' },
-  { id: 'd2_2', name: '2번 드래곤', cost: 2, atk: 2, hp: 2, ability: '능력 없음', tag: '능력 없음' },
-  { id: 'd3_2', name: '3번 드래곤', cost: 3, atk: 3, hp: 3, ability: '능력 없음', tag: '능력 없음' },
-  { id: 'k2_2', name: '멍멍이', cost: 1, atk: 1, hp: 3, ability: '능력 없음', tag: '능력 없음' },
-  { id: 'k6_2', name: '도적단', cost: 2, atk: 2, hp: 2, ability: '등장: 훔치기', tag: '등장' },
+  { id: '001', name: '용맹한 기사', cost: 1, atk: 1, hp: 2, ability: '등장: 내 다른 카드 한 장에 공격력을 1 부여합니다.', tag: '등장' },
+  { id: '002', name: '멍멍이', cost: 1, atk: 1, hp: 3, ability: '능력 없음', tag: '능력 없음' },
+  { id: '003', name: '유령', cost: 4, atk: 0, hp: 1, ability: '이 카드는 처치되지 않습니다.', tag: '패시브' },
+  { id: '004', name: '강령술사', cost: 4, atk: 43, hp: 4, ability: '등장: 부활', tag: '등장' },
+  { id: '005', name: '바람 마법사', cost: 3, atk: 3, hp: 4, ability: '등장: 바운스', tag: '등장' },
+  { id: '006', name: '도적단', cost: 2, atk: 2, hp: 2, ability: '등장: 훔치기', tag: '등장' },
+  { id: '007', name: '겁쟁이 기사', cost: 2, atk: 1, hp: 3, ability: '등장: 공격력+1', tag: '등장' },
+  { id: '008', name: '7번 드래곤', cost: 7, atk: 7, hp: 7, ability: '능력 없음', tag: '능력 없음' },
+  { id: '009', name: '6번 드래곤', cost: 6, atk: 6, hp: 6, ability: '능력 없음', tag: '능력 없음' },
+  { id: '010', name: '5번 드래곤', cost: 5, atk: 5, hp: 5, ability: '능력 없음', tag: '능력 없음' },
+  { id: '011', name: '4번 드래곤', cost: 4, atk: 4, hp: 4, ability: '능력 없음', tag: '능력 없음' },
+  { id: '012', name: '3번 드래곤', cost: 3, atk: 33, hp: 33, ability: '능력 없음', tag: '능력 없음' },
+  { id: '013', name: '2번 드래곤', cost: 2, atk: 2, hp: 2, ability: '능력 없음', tag: '능력 없음' },
+  { id: '014', name: '1번 드래곤', cost: 1, atk: 1, hp: 1, ability: '능력 없음', tag: '능력 없음' },
+  { id: '015', name: '음악인', cost: 7, atk: 4, hp: 6, ability: '등장: 비용 감소', tag: '등장' },
+  { id: '016', name: '화난 사람', cost: 1, atk: 1, hp: 1, ability: '능력 없음', tag: '능력 없음' },
+  { id: '017', name: '이만진', cost: 2, atk: 2, hp: 2, ability: '능력 없음', tag: '능력 없음' },
+  { id: '018', name: '삼만진', cost: 3, atk: 3, hp: 3, ability: '능력 없음', tag: '능력 없음' },
+  { id: '019', name: '사만진', cost: 1, atk: 1, hp: 3, ability: '능력 없음', tag: '능력 없음' },
+  { id: '020', name: '도적단 두목', cost: 2, atk: 2, hp: 2, ability: '등장: 훔치기', tag: '등장' },
 ];
 
-// 덱 셔플 함수
 const shuffleDeck = (deck) => {
   return [...deck].sort(() => Math.random() - 0.5).map((card, idx) => ({ ...card, instanceId: `${card.id}-${idx}-${Date.now()}` }));
 };
 
+// 🎛️ 카드 레이아웃 기본값 설정 (앞으로 수치를 바꿀 때는 여기서만 수정하시면 됩니다!)
+const INITIAL_LAYOUT_COORDS = {
+  "costTop": 7,
+  "costLeft": 10,
+  "costSize": 10,
+  "nameTop": 3,
+  "nameLeft": 26,
+  "nameSize": 10,
+  "abilityTop": 68,
+  "abilityLeft": 8,
+  "abilitySize": 7,
+  "abilityWidth": 85,
+  "abilityHeight": 60,
+  "atkTop": 53,
+  "atkLeft": 25,
+  "atkSize": 15,
+  "hpTop": 53,
+  "hpLeft": 73,
+  "hpSize": 15
+};
+
 export default function App() {
   const [user, setUser] = useState(null);
+  const [isAuthChecking, setIsAuthChecking] = useState(true); 
   const [matching, setMatching] = useState(false);
   const [gameRoomId, setGameRoomId] = useState(null);
-  const [gameState, setGameState] = useState(null); // Firestore 실시간 데이터 반영
-
-  // 선택된 아군 카드 공격 대상을 고르기 위한 임시 상태
+  const [gameState, setGameState] = useState(null); 
   const [selectedAttackerIdx, setSelectedAttackerIdx] = useState(null);
+  // 🛑 매칭 취소 및 엉킴 방지용 관리 변수
+  const matchUnsubscribeRef = useRef(null);
+  const matchedRef = useRef(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  // 🎛️ 위에서 선언한 const 값으로 최초 상태 세팅
+  const [coords, setCoords] = useState(INITIAL_LAYOUT_COORDS);
+  const [showTester, setShowTester] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-    });
+      setIsAuthChecking(false);
+    }, () => setIsAuthChecking(false));
     return () => unsubscribe();
   }, []);
 
-  // 구글 로그인
   const handleGoogleLogin = async () => {
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    try { await signInWithPopup(auth, provider); } catch (e) { alert("로그인 실패"); }
   };
 
-  // 🔄 실시간 매칭 로직
+  const handleLogout = async () => {
+    if (user) await deleteDoc(doc(db, 'matchQueue', user.uid)).catch(() => {});
+    await signOut(auth);
+    setGameState(null);
+    setGameRoomId(null);
+    setUser(null);
+  };
+
   const startMatching = async () => {
     if (!user) return;
     setMatching(true);
+    setCoords(INITIAL_LAYOUT_COORDS); // 매 게임 시작 시 수치 초기화
+    matchedRef.current = false;       // 매칭 성공 여부 초기화
+    
+    try {
+      const matchQueueRef = collection(db, 'matchQueue');
+      const q = query(matchQueueRef, where('status', '==', 'waiting'));
+      const querySnapshot = await getDocs(q);
 
-    const matchQueueRef = collection(db, 'matchQueue');
-    const q = query(matchQueueRef, where('status', '==', 'waiting'));
-    const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        const opponentDoc = querySnapshot.docs[0];
+        const opponentData = opponentDoc.data();
 
-    // 대기 중인 유저가 있다면 매칭 성사!
-    if (!querySnapshot.empty) {
-      const opponentDoc = querySnapshot.docs[0];
-      const opponentData = opponentDoc.data();
+        if (opponentData.uid !== user.uid) {
+          matchedRef.current = true; // 즉시 매칭 성공 처리
+          const roomId = `room-${Date.now()}`;
+          const isUserFirst = Math.random() > 0.5;
+          const roomRef = doc(db, 'gameRooms', roomId);
+          const playerADeck = shuffleDeck(DEFAULT_DECK);
+          const playerBDeck = shuffleDeck(DEFAULT_DECK);
 
-      if (opponentData.uid !== user.uid) {
-        const roomId = `room-${Date.now()}`;
-        
-        // 선후공 결정 (50% 확률)
-        const isUserFirst = Math.random() > 0.5;
+          await setDoc(roomRef, {
+            playerA: { uid: user.uid, email: user.email, hp: 30, energy: isUserFirst ? 1 : 0, maxEnergy: isUserFirst ? 1 : 0, turnCount: isUserFirst ? 1 : 0, field: [], hand: playerADeck.splice(0, 3), deck: playerADeck },
+            playerB: { uid: opponentData.uid, email: opponentData.email, hp: 30, energy: isUserFirst ? 0 : 1, maxEnergy: isUserFirst ? 0 : 1, turnCount: isUserFirst ? 0 : 1, field: [], hand: playerBDeck.splice(0, 4), deck: playerBDeck },
+            currentTurnUid: isUserFirst ? user.uid : opponentData.uid,
+            winner: null,
+            status: 'playing'
+          });
 
-        // 게임 룸 데이터 초기화 생성
-        const roomRef = doc(db, 'gameRooms', roomId);
-        const playerADeck = shuffleDeck(DEFAULT_DECK);
-        const playerBDeck = shuffleDeck(DEFAULT_DECK);
-
-        await setDoc(roomRef, {
-          playerA: {
-            uid: user.uid,
-            email: user.email,
-            hp: 30,
-            energy: 1,
-            maxEnergy: 1,
-            turnCount: 1,
-            field: [],
-            hand: playerADeck.splice(0, 3), // 시작 카드 3장
-            deck: playerADeck,
-          },
-          playerB: {
-            uid: opponentData.uid,
-            email: opponentData.email,
-            hp: 30,
-            energy: 0,
-            maxEnergy: 0,
-            turnCount: 1,
-            field: [],
-            hand: playerBDeck.splice(0, 4), // 후공은 카드 4장으로 시작
-            deck: playerBDeck,
-          },
-          currentTurnUid: isUserFirst ? user.uid : opponentData.uid,
-          winner: null,
-          status: 'playing'
-        });
-
-        // 대기열에서 상대방 제거
-        await deleteDoc(doc(db, 'matchQueue', opponentDoc.id));
-        setGameRoomId(roomId);
-        setMatching(false);
-        listenToGameRoom(roomId);
-        return;
+          await updateDoc(doc(db, 'matchQueue', opponentDoc.id), { status: 'matched', roomId: roomId });
+          await deleteDoc(doc(db, 'matchQueue', user.uid)).catch(() => {});
+          setGameRoomId(roomId);
+          setMatching(false);
+          listenToGameRoom(roomId);
+          return;
+        }
       }
-    }
 
-    // 대기자가 없으면 내가 대기열에 등록
-    await setDoc(doc(db, 'matchQueue', user.uid), {
-      uid: user.uid,
-      email: user.email,
-      status: 'waiting',
-      createdAt: Date.now()
-    });
-
-    // 내 문서가 변경되는지 (상대에 의해 매칭이 잡혀 방이 생기는지) 감시
-    const unsubscribe = onSnapshot(doc(db, 'matchQueue', user.uid), async (snap) => {
-      if (snap.exists() && snap.data().status === 'matched') {
-        const roomId = snap.data().roomId;
-        setGameRoomId(roomId);
-        setMatching(false);
-        listenToGameRoom(roomId);
-        unsubscribe();
-      }
-    });
+      await setDoc(doc(db, 'matchQueue', user.uid), { uid: user.uid, email: user.email, status: 'waiting', createdAt: Date.now() });
+      const unsubscribe = onSnapshot(doc(db, 'matchQueue', user.uid), (snap) => {
+        if (snap.exists() && snap.data().status === 'matched') {
+          matchedRef.current = true; // 실시간 매칭 성공 처리
+          const roomId = snap.data().roomId;
+          setGameRoomId(roomId);
+          setMatching(false);
+          listenToGameRoom(roomId);
+          unsubscribe();
+          deleteDoc(doc(db, 'matchQueue', user.uid)).catch(() => {});
+        }
+      });
+      matchUnsubscribeRef.current = unsubscribe; // 리스너 함수 보관
+    } catch (err) { setMatching(false); }
   };
 
-  // 🎮 게임 룸 실시간 동기화 리스너
+  // 🛑 매칭 취소 함수 (엉킴 방지 2초 대기 포함)
+  const cancelMatching = async () => {
+    if (isCancelling) return;
+    setIsCancelling(true);
+
+    // 엉킴 방지용 2초 대기 (이 사이에 매칭 스냅샷이 잡히면 쩔수없이 시작됨)
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // 2초가 지났는데도 상대방과 매칭이 성사되지 않은 상태라면 안전하게 취소 진행
+    if (!matchedRef.current) {
+      if (matchUnsubscribeRef.current) {
+        matchUnsubscribeRef.current(); // 리스너 구독 해제
+        matchUnsubscribeRef.current = null;
+      }
+      // 대기열 데이터베이스에서 내 문서 지우기
+      await deleteDoc(doc(db, 'matchQueue', user.uid)).catch(() => {});
+      setMatching(false);
+    }
+    setIsCancelling(false);
+  };
+
   const listenToGameRoom = (roomId) => {
     onSnapshot(doc(db, 'gameRooms', roomId), (snap) => {
-      if (snap.exists()) {
-        setGameState(snap.data());
-      }
+      if (snap.exists()) setGameState(snap.data());
     });
   };
 
-  // 내 역할 찾기 (playerA 인지 playerB 인지)
+  useEffect(() => {
+    if (!user) return;
+    const checkExistingStatus = async () => {
+      try {
+        const userQueueRef = doc(db, 'matchQueue', user.uid);
+        const queueSnap = await getDoc(userQueueRef);
+        if (queueSnap.exists() && queueSnap.data().status === 'waiting') {
+          await deleteDoc(userQueueRef);
+        }
+        const roomsRef = collection(db, 'gameRooms');
+        const qA = query(roomsRef, where('playerA.uid', '==', user.uid), where('status', '==', 'playing'));
+        const snapA = await getDocs(qA);
+        if (!snapA.empty) { setGameRoomId(snapA.docs[0].id); listenToGameRoom(snapA.docs[0].id); return; }
+
+        const qB = query(roomsRef, where('playerB.uid', '==', user.uid), where('status', '==', 'playing'));
+        const snapB = await getDocs(qB);
+        if (!snapB.empty) { setGameRoomId(snapB.docs[0].id); listenToGameRoom(snapB.docs[0].id); return; }
+      } catch (err) { console.error(err); }
+    };
+    checkExistingStatus();
+  }, [user]);
+
   const getRole = () => {
-    if (!gameState || !user) return null;
+    if (!gameState || !user || !gameState.playerA || !gameState.playerB) return null;
     return gameState.playerA.uid === user.uid ? 'playerA' : 'playerB';
   };
-  const getOpponentRole = () => {
-    return getRole() === 'playerA' ? 'playerB' : 'playerA';
-  };
+  const getOpponentRole = () => { return getRole() === 'playerA' ? 'playerB' : 'playerA'; };
 
-  // 턴 종료 처리 및 에너지 증가 시스템
   const endTurn = async () => {
     const myRole = getRole();
     const oppRole = getOpponentRole();
-    if (!gameState || gameState.currentTurnUid !== user.uid) return;
+    if (!gameState || gameState.currentTurnUid !== user.uid || !myRole) return;
 
     const nextTurnCount = gameState[oppRole].turnCount + 1;
-    
-    // 기획: 1~7턴까지는 턴수만큼, 8턴부터는 매턴 시작시 에너지가 6으로 고정
-    let nextMaxEnergy = nextTurnCount;
-    if (nextTurnCount >= 8) {
-      nextMaxEnergy = 6;
-    }
+    let nextMaxEnergy = nextTurnCount > 7 ? 7 : nextTurnCount;
 
     const updatedData = { ...gameState };
-    
-    // 상대방 턴 시작 세팅 (에너지 충전)
     updatedData[oppRole].maxEnergy = nextMaxEnergy;
     updatedData[oppRole].energy = nextMaxEnergy;
     updatedData[oppRole].turnCount = nextTurnCount;
 
-    // 상대방 덱에서 카드 1장 드로우
     if (updatedData[oppRole].deck.length > 0) {
       const drawnCard = updatedData[oppRole].deck.shift();
-      if (updatedData[oppRole].hand.length < 10) { // 패 최대 10장 제한
-        updatedData[oppRole].hand.push(drawnCard);
-      }
+      if (updatedData[oppRole].hand.length < 10) updatedData[oppRole].hand.push(drawnCard);
     }
-
-    // 내 필드의 카드들 다음 턴에 공격 가능하도록 수면(소환후유증) 해제
     updatedData[myRole].field = updatedData[myRole].field.map(card => ({ ...card, canAttack: true }));
-
-    // 턴 교체
     updatedData.currentTurnUid = gameState[oppRole].uid;
 
     await updateDoc(doc(db, 'gameRooms', gameRoomId), updatedData);
     setSelectedAttackerIdx(null);
   };
 
-  // 🃏 카드 내기 (소환 및 등장 능력 처리)
   const playCard = async (cardIdx) => {
     const myRole = getRole();
-    if (!gameState || gameState.currentTurnUid !== user.uid) return;
+    if (!gameState || gameState.currentTurnUid !== user.uid || !myRole) return;
 
     const myState = gameState[myRole];
     const card = myState.hand[cardIdx];
 
-    if (myState.energy < card.cost) {
-      alert("에너지가 부족합니다!");
-      return;
-    }
-    if (myState.field.length >= 8) {
-      alert("필드에는 최대 8장의 카드만 배치할 수 있습니다!");
-      return;
-    }
+    if (myState.energy < card.cost || myState.field.length >= 8) return;
 
     const updatedData = { ...gameState };
-    const newFieldCard = { ...card, canAttack: false }; // 등장한 턴에는 공격 불가
+    const newFieldCard = { ...card, canAttack: false };
 
-    // 등장 능력 예시 처리 (용맹한 기사: 내 다른 카드 한 장에 공격력 +1)
     if (card.tag === '등장' && card.name === '용맹한 기사' && updatedData[myRole].field.length > 0) {
-      // 필드에 있는 첫 번째 카드의 공격력을 1 올려줌
       updatedData[myRole].field[0].atk += 1;
     }
 
-    // 에너지 차감 및 패에서 필드로 이동
     updatedData[myRole].energy -= card.cost;
     updatedData[myRole].hand.splice(cardIdx, 1);
     updatedData[myRole].field.push(newFieldCard);
@@ -228,50 +266,31 @@ export default function App() {
     await updateDoc(doc(db, 'gameRooms', gameRoomId), updatedData);
   };
 
-  // ⚔️ 전투 처리 (하스스톤식 동시 대미지 교환)
   const attackTarget = async (targetType, targetIdx = null) => {
     const myRole = getRole();
     const oppRole = getOpponentRole();
-    if (selectedAttackerIdx === null) return;
+    if (selectedAttackerIdx === null || !myRole) return;
 
     const updatedData = { ...gameState };
     const attacker = updatedData[myRole].field[selectedAttackerIdx];
-
-    if (!attacker.canAttack) {
-      alert("이 카드는 이번 턴에 공격할 수 없습니다!");
-      return;
-    }
+    if (!attacker || !attacker.canAttack) return;
 
     if (targetType === 'hero') {
-      // 1. 상대 명치(진영) 공격
       updatedData[oppRole].hp -= attacker.atk;
       attacker.canAttack = false;
-      
-      // 승리 조건 체크 (명치 체력 0 이하)
       if (updatedData[oppRole].hp <= 0) {
         updatedData.winner = user.uid;
         updatedData.status = 'finished';
       }
     } else if (targetType === 'minion') {
-      // 2. 상대 미니언(카드) 공격
       const defender = updatedData[oppRole].field[targetIdx];
+      if (!defender) return;
 
-      // 서로 공격력만큼 체력 차감 (동시 타격)
       defender.hp -= attacker.atk;
-      
-      // 패시브 능력 체크 (유령: 처치되지 않음 예외 처리)
-      if (attacker.name !== '유령') {
-        attacker.hp -= defender.atk;
-      }
-
       attacker.canAttack = false;
 
-      // 체력이 0 이하인 카드들은 필드에서 제거(무덤)
       if (defender.hp <= 0 && defender.name !== '유령') {
         updatedData[oppRole].field.splice(targetIdx, 1);
-      }
-      if (attacker.hp <= 0 && attacker.name !== '유령') {
-        updatedData[myRole].field.splice(selectedAttackerIdx, 1);
       }
     }
 
@@ -279,28 +298,207 @@ export default function App() {
     setSelectedAttackerIdx(null);
   };
 
-  // --- UI 렌더링 영역 ---
+  const handleSurrender = async () => {
+    if (!window.confirm("정말로 기권하시겠습니까? 즉시 패배 처리됩니다.")) return;
+    const oppRole = getOpponentRole();
+    await updateDoc(doc(db, 'gameRooms', gameRoomId), {
+      status: 'finished',
+      winner: gameState[oppRole].uid,
+    });
+  };
+
+  const handleSliderChange = (key, value) => {
+    setCoords(prev => ({ ...prev, [key]: parseInt(value) }));
+  };
+
+  // 🃏 그림자 제거 및 색상 커스텀 텍스트 렌더러 (cqw 적용 및 이미지 디버깅 기능 추가)
+  // 🃏 그림자 제거 및 색상 커스텀 텍스트 렌더러
+  // 🃏 그림자 제거 및 색상 커스텀 텍스트 렌더러 (z값 레이어 정상화 + cqw 반응형 글자 적용)
+  // 🃏 그림자 제거 및 색상 커스텀 텍스트 렌더러
+  // 🃏 일러스트 정렬 영점 패치 완료 버전 (cqw 반응형 단위 유지)
+  const renderPremiumCard = (card, onClick, borderClass, sizeClass = "w-24 sm:w-28 md:w-32") => {
+    const normalizedId = card.id.split('_')[0]; 
+    const illustrationPath = `/images/cards/${normalizedId}.png`;
+
+    return (
+      <div
+        onClick={onClick}
+        className={`relative ${sizeClass} aspect-[3/4] rounded-xl overflow-hidden shadow-2xl select-none transition-all cursor-pointer box-border border-[3px] ${borderClass} hover:z-50`}
+        style={{ containerType: 'inline-size' }}
+      >
+        {/* 1. 배경 일러스트 (✅ 레이아웃 틀과 1:1 싱크를 위해 object-fill로 완전히 일치시킴) */}
+        <img 
+          src={illustrationPath} 
+          alt={card.name} 
+          className="absolute inset-0 w-full h-full object-fill"
+          onError={(e) => { e.target.style.display = 'none'; }}
+        />
+
+        {/* 2. 카드 프레임 틀 */}
+        <img 
+          src="/images/card_layout.png" 
+          alt="Frame" 
+          className="absolute inset-0 w-full h-full object-fill pointer-events-none z-10"
+          onError={(e) => {
+            e.target.className = "absolute inset-0 w-full h-full border border-stone-800 pointer-events-none bg-gradient-to-t from-black/80 to-transparent z-10";
+          }}
+        />
+
+        {/* 3. 텍스트 레이어 (⚠️ 중요: 슬라이더 조절을 위해 cqw 단위 완벽 유지!) */}
+        <div className="absolute inset-0 z-20">
+          
+          {/* 코스트 숫자 (흰색) */}
+          <span 
+            className="tcg-number font-black text-white absolute leading-none"
+            style={{ 
+              top: `${coords.costTop}%`, 
+              left: `${coords.costLeft}%`, 
+              fontSize: `${coords.costSize}cqw` 
+            }}
+          >
+            {card.cost}
+          </span>
+
+          {/* 카드 이름 (검은색) */}
+          <span 
+            className="font-black truncate absolute text-left tracking-tighter text-black"
+            style={{ 
+              top: `${coords.nameTop}%`, 
+              left: `${coords.nameLeft}%`, 
+              fontSize: `${coords.nameSize}cqw`, 
+              width: `${100 - coords.nameLeft - 10}%`
+            }}
+          >
+            {card.name}
+          </span>
+
+          {/* 능력 설명글 (검은색, 위쪽 정렬 적용) */}
+          <div 
+            className="absolute leading-tight text-black overflow-hidden flex flex-col justify-start"
+            style={{ 
+              top: `${coords.abilityTop}%`, 
+              left: `${coords.abilityLeft}%`, 
+              width: `${coords.abilityWidth}%`, 
+              fontSize: `${coords.abilitySize}cqw`, 
+              height: `${coords.abilityHeight}%`
+            }}
+          >
+            <p className="line-clamp-3 font-medium">
+              {card.ability !== '능력 없음' ? card.ability : ''}
+            </p>
+          </div>
+
+          {/* 공격력 수치 */}
+          <span 
+            className="tcg-number font-black text-amber-400 absolute leading-none"
+            style={{ 
+              top: `${coords.atkTop}%`, 
+              left: `${coords.atkLeft}%`, 
+              fontSize: `${coords.atkSize}cqw` 
+            }}
+          >
+            {card.atk}
+          </span>
+
+          {/* 체력 수치 */}
+          <span 
+            className="tcg-number font-black text-red-400 absolute leading-none"
+            style={{ 
+              top: `${coords.hpTop}%`, 
+              left: `${coords.hpLeft}%`, 
+              fontSize: `${coords.hpSize}cqw` 
+            }}
+          >
+            {card.hp}
+          </span>
+
+        </div>
+      </div>
+    );
+  };
+
+  const renderDynamicGridField = (fieldCards, isOpponentField) => {
+    return (
+      <div className="w-full flex justify-center items-center gap-4 py-1 min-h-[140px] relative">
+        {fieldCards.map((card, idx) => {
+          let borderClass = 'border-stone-900';
+          if (isOpponentField) {
+            borderClass = selectedAttackerIdx !== null && isMyTurn ? 'border-red-500 animate-pulse scale-105 shadow-xl shadow-red-600/50' : 'border-red-950/40';
+          } else {
+            borderClass = selectedAttackerIdx === idx ? 'border-yellow-400 scale-105 shadow-xl shadow-yellow-500/70' : card.canAttack && isMyTurn ? 'border-green-400 animate-bounce' : 'border-blue-950/40';
+          }
+
+          return renderPremiumCard(
+            card,
+            () => {
+              if (isOpponentField) {
+                if (selectedAttackerIdx !== null && isMyTurn) attackTarget('minion', idx);
+              } else {
+                if (isMyTurn && card.canAttack) setSelectedAttackerIdx(idx);
+              }
+            },
+            borderClass,
+            "w-20 sm:w-24 md:w-28"
+          );
+        })}
+      </div>
+    );
+  };
+
+  if (isAuthChecking) return <div className="flex h-screen items-center justify-center bg-slate-950 text-slate-400 font-bold">정보 확인 중...</div>;
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white">
-        <h1 className="text-4xl font-extrabold text-amber-500 mb-6">Gridlock TCG</h1>
-        <button onClick={handleGoogleLogin} className="px-6 py-3 bg-amber-600 rounded-xl font-bold hover:bg-amber-500">
-          구글 계정으로 로그인하여 대전 시작
-        </button>
+        <CustomFontSetup />
+        <h1 className="text-4xl font-extrabold text-amber-500 mb-6 tracking-wide">Gridlock TCG</h1>
+        <button onClick={handleGoogleLogin} className="px-6 py-3 bg-amber-600 rounded-xl font-bold hover:bg-amber-500 transition-colors shadow-lg">구글 로그인</button>
       </div>
     );
   }
-
   if (!gameState) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-slate-900 text-white">
-        <h1 className="text-3xl font-bold text-slate-200 mb-6">메인 로비</h1>
-        {matching ? (
-          <div className="text-xl animate-pulse text-amber-400">상대 플레이어를 매칭하는 중... 대기방 잔류 중</div>
-        ) : (
-          <button onClick={startMatching} className="px-10 py-5 bg-blue-600 text-2xl font-black rounded-2xl hover:bg-blue-500 shadow-lg">
-            대전 매칭 시작 (무조건 고정 덱)
+      <div className="flex flex-col items-center justify-center h-screen bg-slate-900 text-white relative">
+        {/* 로비 우상단 컨트롤러 유저 정보 & 좌표 창 토글 */}
+        <div className="absolute top-6 right-6 flex items-center gap-4 bg-slate-800 px-4 py-2 rounded-full border border-slate-700">
+          <span className="text-sm text-slate-300 font-bold">{user.email} 님</span>
+          
+          {/* 좌표창 토글 버튼 */}
+          <button 
+            onClick={() => setShowTester(!showTester)} 
+            className={`px-3 py-1 rounded-full text-xs font-black transition-colors ${
+              showTester 
+                ? 'bg-amber-500 text-slate-950 hover:bg-amber-400' 
+                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+            }`}
+          >
+            {showTester ? '📐 좌표창 끄기' : '📐 좌표창 켜기'}
           </button>
+
+          <button onClick={handleLogout} className="px-3 py-1 bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white rounded-full text-xs font-black transition-colors">로그아웃</button>
+        </div>
+        
+        <h1 className="text-3xl font-bold mb-6">메인 로비</h1>
+        {matching ? (
+          <div className="flex flex-col items-center gap-4">
+            <div className="text-xl animate-pulse text-amber-400">
+              {isCancelling ? '매칭 취소 처리 중 (엉킴 방지 대기)...' : '매칭 대기 중... 다른 브라우저에서 로그인해 매칭을 시작하세요.'}
+            </div>
+            
+            {/* 매칭 취소 버튼 */}
+            <button 
+              onClick={cancelMatching} 
+              disabled={isCancelling}
+              className={`px-6 py-2 rounded-xl font-bold text-sm shadow transition-colors ${
+                isCancelling 
+                  ? 'bg-slate-800 text-slate-500 cursor-not-allowed' 
+                  : 'bg-red-600 text-white hover:bg-red-500 active:scale-95'
+              }`}
+            >
+              {isCancelling ? '취소 대기 중...' : '❌ 매칭 취소'}
+            </button>
+          </div>
+        ) : (
+          <button onClick={startMatching} className="px-10 py-5 bg-blue-600 text-2xl font-black rounded-2xl hover:bg-blue-500 shadow-lg transition-transform hover:scale-105">대전 매칭 시작</button>
         )}
       </div>
     );
@@ -308,139 +506,151 @@ export default function App() {
 
   const myRole = getRole();
   const oppRole = getOpponentRole();
-  const myState = gameState[myRole];
-  const oppState = gameState[oppRole];
+  const myState = myRole ? gameState[myRole] : null;
+  const oppState = oppRole ? gameState[oppRole] : null;
   const isMyTurn = gameState.currentTurnUid === user.uid;
 
+  if (!myState || !oppState) return <div className="h-screen bg-stone-900 text-white flex items-center justify-center">데이터 동기화 중...</div>;
+
   return (
-    <div className="h-screen w-full bg-stone-900 text-white flex flex-col justify-between p-4 overflow-hidden select-none">
+    <div className="tcg-theme h-screen max-h-screen w-full bg-stone-900 text-white flex overflow-hidden select-none box-border p-1">
+      <CustomFontSetup />
       
-      {/* 👑 상단: 상대방 정보 영역 */}
-      <div className="bg-slate-800/60 p-3 rounded-xl flex justify-between items-center border border-red-900/30">
-        <div>
-          <span className="text-red-400 font-bold">상대 진영: {oppState.email}</span>
-          <div className="text-2xl font-black text-red-500">HP: ❤️ {oppState.hp} / 30</div>
-        </div>
-        <div className="flex gap-4 text-sm text-slate-400">
-          <div>남은 덱: {oppState.deck.length}장</div>
-          <div>손패: 🃏 {oppState.hand.length}장</div>
-          <div className="text-amber-500 font-bold">에너지: ⚡ {oppState.energy}/{oppState.maxEnergy}</div>
-        </div>
-        {selectedAttackerIdx !== null && isMyTurn && (
-          <button onClick={() => attackTarget('hero')} className="px-4 py-2 bg-red-600 hover:bg-red-500 font-bold rounded animate-bounce">
-            🎯 상대 본체 격파(공격)
-          </button>
-        )}
-      </div>
-
-      {/* 🏟️ 중앙: 배틀 필드 (상대 진영 최대 8칸 / 내 진영 최대 8칸) */}
-      <div className="flex-1 flex flex-col justify-center space-y-6 my-4 bg-stone-950/40 rounded-3xl p-4 border border-slate-800">
+      <div className="flex-1 flex flex-col justify-between h-full p-2 bg-gradient-to-b from-stone-900 via-stone-950 to-stone-900 overflow-hidden">
         
-        {/* 상대 필드 */}
-        <div className="flex justify-center items-center gap-3 h-32 border-b border-dashed border-slate-800 pb-3">
-          {oppState.field.length === 0 ? <div className="text-sm text-slate-600 font-mono">상대 필드가 비어있음</div> : 
-            oppState.field.map((card, idx) => (
-              <div 
-                key={card.instanceId}
-                onClick={() => selectedAttackerIdx !== null && attackTarget('minion', idx)}
-                className={`w-24 h-28 bg-red-950/40 border-2 rounded-xl flex flex-col justify-between p-1 cursor-pointer transition-transform ${selectedAttackerIdx !== null ? 'border-red-500 hover:scale-105 animate-pulse' : 'border-red-900'}`}
-              >
-                <div className="text-xs font-bold text-slate-300 truncate">{card.name}</div>
-                <div className="text-[10px] text-slate-400 scale-90 leading-tight h-10 overflow-hidden">{card.ability}</div>
-                <div className="flex justify-between font-mono text-sm px-1">
-                  <span className="text-amber-400">⚔️{card.atk}</span>
-                  <span className="text-red-400">❤️{card.hp}</span>
-                </div>
-              </div>
-            ))
-          }
+        <div className="bg-slate-900/90 rounded-lg px-3 py-1 flex justify-between items-center border border-red-950/40 h-[6vh] min-h-[40px]">
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-red-400 font-black max-w-[120px] truncate">{oppState.email.split('@')[0]}</div>
+            <div className="text-[10px] text-slate-400 font-medium">덱: {oppState.deck?.length}장 | 패: {oppState.hand?.length}장</div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            {selectedAttackerIdx !== null && isMyTurn && (
+              <button onClick={() => attackTarget('hero')} className="px-2 py-0.5 bg-red-600 font-black rounded text-[10px] shadow-lg animate-pulse">🎯 명치치기</button>
+            )}
+            <div className="flex items-center gap-1 bg-red-950/80 px-3 py-0.5 rounded-md border border-red-800 text-xs font-black text-red-300">
+              <span className="text-[9px] text-red-400">HP</span> {oppState.hp}
+            </div>
+          </div>
+
+          <div className="text-xs font-mono text-amber-500 font-bold">⚡ {oppState.energy} / {oppState.maxEnergy}</div>
         </div>
 
-        {/* 내 필드 */}
-        <div className="flex justify-center items-center gap-3 h-32 pt-3">
-          {myState.field.length === 0 ? <div className="text-sm text-slate-600 font-mono">내 필드가 비어있음</div> : 
-            myState.field.map((card, idx) => (
-              <div 
-                key={card.instanceId}
-                onClick={() => isMyTurn && card.canAttack && setSelectedAttackerIdx(idx)}
-                className={`w-24 h-28 bg-blue-950/40 border-2 rounded-xl flex flex-col justify-between p-1 cursor-pointer transition-transform ${selectedAttackerIdx === idx ? 'border-yellow-400 scale-105 shadow-yellow-500/50 shadow-lg' : card.canAttack && isMyTurn ? 'border-green-400' : 'border-blue-900'}`}
-              >
-                <div className="text-xs font-bold text-slate-200 truncate">{card.name}</div>
-                <div className="text-[10px] text-slate-400 scale-90 leading-tight h-10 overflow-hidden">{card.ability}</div>
-                <div className="flex justify-between font-mono text-sm px-1">
-                  <span className="text-amber-400">⚔️{card.atk}</span>
-                  <span className="text-red-400">❤️{card.hp}</span>
-                </div>
+        {/* ⚔️ 2. 배틀 필드 구역 (overflow-hidden 제거 및 z-index 층 지정) */}
+        <div className="flex-1 flex flex-col justify-center gap-2 my-1 relative">
+          
+          {/* 상대 필드 (가장 바닥: z-10) */}
+          <div className="w-full relative z-10">
+            {oppState.field.length === 0 && <div className="text-[10px] text-slate-600 text-center h-[20px]">상대 진영 비어있음</div>}
+            {renderDynamicGridField(oppState.field, true)}
+          </div>
+          
+          <div className="w-full border-t border-dashed border-stone-800 relative z-10"></div>
+
+          {/* 아군 필드 (중간 층: z-20) */}
+          <div className="w-full relative z-20">
+            {myState.field.length === 0 && <div className="text-[10px] text-slate-600 text-center h-[20px]">아군 진영 비어있음</div>}
+            {renderDynamicGridField(myState.field, false)}
+          </div>
+        </div>
+
+        {/* 🎒 3. 하단 컨트롤 구역 (내 손패가 가장 최상단: z-30) */}
+        <div className="flex flex-col gap-1 h-[36vh] justify-end relative z-30">
+          
+          {/* overflow-x-auto 삭제하여 손패가 위로 튀어나올 때 잘리는 현상 방지 */}
+          {/* 🎒 내 손패 렌더링 구역 */}
+          <div className="flex justify-center gap-2 p-1 items-end max-h-[26vh] overflow-visible">
+            {(myState.hand || []).map((card, idx) => {
+              const isPlayable = isMyTurn && myState.energy >= card.cost;
+              const borderClass = isPlayable ? 'border-amber-400 hover:border-yellow-300 hover:-translate-y-4 shadow-amber-500/20' : 'border-slate-950 opacity-50';
+              return renderPremiumCard(
+                card,
+                () => isMyTurn && playCard(idx),
+                borderClass,
+                "w-32 sm:w-32 md:w-36" /* ✅ 기존 "w-24 sm:w-26 md:w-28"에서 30%가량 대폭 확대 */
+              );
+            })}
+          </div>
+
+          <div className="bg-slate-900/95 rounded-lg px-3 py-1 flex justify-between items-center border border-slate-800 h-[6vh] min-h-[45px]">
+            <div className="flex items-center gap-3">
+              <button onClick={handleSurrender} className="px-2 py-0.5 bg-stone-800 text-red-400 rounded text-[10px] font-bold hover:bg-red-950">🏳️ 기권</button>
+              <div className="text-[10px] text-slate-400">덱: {myState.deck?.length}장</div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="bg-slate-800 px-2 py-0.5 rounded text-[10px] text-amber-400 font-bold">TURN {myState.turnCount}</div>
+              <div className="flex items-center gap-1 bg-blue-950/80 px-3 py-0.5 rounded-md border border-blue-800 text-xs font-black text-blue-300">
+                <span className="text-[9px] text-blue-400">HP</span> {myState.hp}
               </div>
-            ))
-          }
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="font-mono text-xs text-amber-400 font-bold">⚡ {myState.energy}/{myState.maxEnergy}</div>
+              <button 
+                onClick={endTurn} 
+                disabled={!isMyTurn}
+                className={`px-3 py-1 font-black text-xs rounded-md shadow ${isMyTurn ? 'bg-amber-500 text-slate-950 animate-pulse' : 'bg-slate-800 text-slate-500'}`}
+              >
+                {isMyTurn ? '턴 종료 ⏱️' : '상대 턴'}
+              </button>
+            </div>
+          </div>
+
         </div>
       </div>
 
-      {/* 🎒 하단: 내 정보 및 카드 손패(Hand) 제어 영역 */}
-      <div className="bg-slate-800/80 p-4 rounded-2xl border border-blue-900/40 flex flex-col space-y-3">
-        <div className="flex justify-between items-center">
+      {showTester && (
+        <div className="w-80 bg-stone-950 border-l border-stone-800 p-2 overflow-y-auto text-xs text-slate-300 z-40 font-mono flex flex-col justify-between h-full">
           <div>
-            <span className="text-blue-400 font-bold">내 진영 (나)</span>
-            <div className="text-2xl font-black text-blue-400">HP: ❤️ {myState.hp} / 30</div>
-          </div>
-
-          {/* 중앙 제어 보드 */}
-          <div className="flex items-center gap-6">
-            <div className="bg-slate-900 px-4 py-2 rounded-xl border border-slate-700 text-center">
-              <span className="text-xs text-slate-400 block">에너지 보유량</span>
-              <span className="text-2xl font-black text-amber-400">⚡ {myState.energy} / {myState.maxEnergy}</span>
+            <div className="flex justify-between items-center mb-2 pb-1 border-b border-stone-800">
+              <span className="font-bold text-amber-500 text-sm">📐 레이아웃 좌표 튜너</span>
+              <button onClick={() => setShowTester(false)} className="text-red-400 text-[10px]">닫기 ×</button>
             </div>
-            <button 
-              onClick={endTurn} 
-              disabled={!isMyTurn}
-              className={`px-8 py-4 font-black text-xl rounded-xl shadow-md transition-transform ${isMyTurn ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 animate-bounce' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}
-            >
-              {isMyTurn ? '턴 종료 ⏱️' : '상대 턴 대기 중'}
-            </button>
+
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+              {Object.keys(coords).map((key) => {
+                const isSize = key.toLowerCase().includes('size');
+                const isWidth = key.toLowerCase().includes('width');
+                let min = 0, max = 100;
+                if (isSize) { min = 5; max = 30; }
+                if (isWidth) { min = 30; max = 100; }
+                
+                return (
+                  <div key={key} className="bg-stone-900/60 p-1.5 rounded border border-stone-800/40">
+                    <div className="flex justify-between text-[10px] mb-0.5 font-sans">
+                      <span className="text-slate-400 font-bold">{key}</span>
+                      <span className="text-amber-400 font-mono font-bold">{coords[key]}{isSize ? 'cqw' : '%'}</span> {/* ✅ px -> cqw 변경 */}
+                    </div>
+                    <input 
+                      type="range" min={min} max={max} 
+                      value={coords[key]} 
+                      onChange={(e) => handleSliderChange(key, e.target.value)}
+                      className="w-full accent-amber-500 h-1 bg-stone-700 rounded-lg appearance-none cursor-pointer"
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          <div className="text-right text-sm text-slate-400">
-            <div>남은 덱: {myState.deck.length}장</div>
-            <div className="text-blue-400 font-bold">현재 {myState.turnCount}번째 턴 플레이 중</div>
+          <div className="mt-2 pt-2 border-t border-stone-800 bg-stone-900 p-2 rounded">
+            <span className="text-[10px] text-green-400 block mb-1">💡 튜닝 후 고정용 셋업 데이터:</span>
+            <pre className="text-[9px] bg-black p-1 rounded text-amber-300 overflow-x-auto whitespace-pre-wrap select-all cursor-pointer">
+              {JSON.stringify(coords, null, 2)}
+            </pre>
+            <p className="text-[8px] text-slate-500 mt-1 leading-normal font-sans">※ 이 데이터 덩어리를 고정하고 싶다면 나중에 알려주세요. 기본값으로 고정 패치해 드릴게요!</p>
           </div>
         </div>
+      )}
 
-        {/* 손패 리스트 */}
-        <div className="flex justify-center gap-3 overflow-x-auto py-2">
-          {myState.hand.map((card, idx) => (
-            <div 
-              key={card.instanceId}
-              onClick={() => isMyTurn && playCard(idx)}
-              className={`w-24 h-32 bg-slate-900 border rounded-xl flex flex-col justify-between p-1.5 cursor-pointer hover:-translate-y-3 transition-transform ${isMyTurn && myState.energy >= card.cost ? 'border-amber-400 hover:border-yellow-300' : 'border-slate-700 opacity-60'}`}
-            >
-              <div className="flex justify-between items-center border-b border-slate-800 pb-0.5">
-                <span className="bg-amber-500/20 text-amber-400 font-mono text-xs font-black rounded-full w-5 h-5 flex items-center justify-center">
-                  {card.cost}
-                </span>
-                <span className="text-[10px] text-slate-400">{card.tag}</span>
-              </div>
-              <div className="text-xs font-bold text-center py-1 truncate">{card.name}</div>
-              <div className="text-[9px] text-slate-400 text-center leading-tight h-10 overflow-hidden line-clamp-3 bg-black/20 p-1 rounded">
-                {card.ability}
-              </div>
-              <div className="flex justify-between font-mono text-xs px-0.5 pt-1">
-                <span className="text-amber-500">⚔️{card.atk}</span>
-                <span className="text-red-500">❤️{card.hp}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 🏆 게임 종료 팝업 모달 */}
       {gameState.status === 'finished' && (
-        <div className="fixed inset-0 bg-black/80 flex flex-col items-center justify-center space-y-4 z-50">
-          <h2 className="text-6xl font-black text-yellow-400">
-            {gameState.winner === user.uid ? '승리 (VICTORY) 🎉' : '패배 (DEFEAT) 💀'}
+        <div className="fixed inset-0 bg-black/90 flex flex-col items-center justify-center space-y-4 z-50">
+          <h2 className="text-5xl font-black tracking-widest text-yellow-400 drop-shadow-lg">
+            {gameState.winner === user.uid ? '🎉 VICTORY' : '💀 DEFEAT'}
           </h2>
-          <button onClick={() => setGameState(null)} className="px-6 py-2 bg-slate-700 text-white font-bold rounded-lg hover:bg-slate-600">
-            로비로 돌아가기
+          <button onClick={() => setGameState(null)} className="px-6 py-2 bg-slate-700 text-white font-bold rounded-xl hover:bg-slate-600 transition-colors">
+            로비로 가기
           </button>
         </div>
       )}
